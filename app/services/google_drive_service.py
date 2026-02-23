@@ -7,14 +7,15 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
 # Scopes required for Google Drive API
-SCOPES = ['https://www.googleapis.com/auth/drive.file']
+# Using 'drive' instead of 'drive.file' to ensure we can access folders shared with the service account
+SCOPES = ['https://www.googleapis.com/auth/drive']
 
 logger = logging.getLogger(__name__)
 
 class GoogleDriveService:
     def __init__(self):
-        self.folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
-        self.credentials_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+        self.folder_id = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "").strip()
+        self.credentials_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
         self.service = self._authenticate()
 
     def _authenticate(self):
