@@ -17,9 +17,10 @@ async def generate_menu(
 ):
     docx_stream = generate_general_sign_docx(request)
     
-    # Request event_name or fallback
-    safe_event_name = request.event_name.replace(" ", "_")
-    filename = f"Sign_general_{safe_event_name}.docx"
+    # Request event_name or fallback, cleaning potential extensions
+    clean_event_name = request.event_name.split(".")[0]
+    safe_event_name = clean_event_name.replace(" ", "_")
+    filename = f"Sing_general_{safe_event_name}.docx"
     
     if upload_to_drive:
         result = drive_service.upload_file(docx_stream, filename)

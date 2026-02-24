@@ -57,6 +57,7 @@ class GoogleDriveService:
             return {"success": False, "error": "Google Drive service not authenticated (check OAuth2 credentials)"}
 
         try:
+            logger.info(f"Uploading file to Drive: {filename}")
             file_metadata = {
                 'name': filename,
                 'parents': [self.folder_id] if self.folder_id else []
