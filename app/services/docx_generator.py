@@ -5,7 +5,7 @@ from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.schemas.menu import MenuRequest
 
-TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "template.docx")
+TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "general_sign.docx")
 
 def get_font_sizes(item_count: int):
     # Dynamic styling based on item count, matching the logic in the provided HTML CSS
