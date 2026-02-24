@@ -10,8 +10,8 @@ class AppSheetService:
         self.access_key = os.getenv("APPSHEET_ACCESS_KEY", "").strip()
         self.table_name = "BDEvents"
         
-    def update_event_sign_link(self, event_id: str, view_link: str) -> dict:
-        """Updates the SINGS_GENERAL_WORD column in AppSheet for the given event_id."""
+    def update_event_sign_link(self, event_id: str, view_link: str, column_name: str = "SINGS_GENERAL_WORD") -> dict:
+        """Updates the specified column in AppSheet for the given event_id."""
         if not (self.app_id and self.access_key):
             logger.error("AppSheet credentials missing")
             return {"success": False, "error": "AppSheet credentials missing"}
@@ -32,7 +32,7 @@ class AppSheetService:
             "Rows": [
                 {
                     "ID": event_id,
-                    "SINGS_GENERAL_WORD": view_link
+                    column_name: view_link
                 }
             ]
         }

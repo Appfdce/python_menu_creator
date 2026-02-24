@@ -7,7 +7,9 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 from app.schemas.menu import MenuRequest
+from app.schemas.individual_menu import IndividualSignRequest
 from app.services.general_sign_generator import generate_general_sign_docx
+from app.services.individual_sign_generator import generate_individual_signs_docx
 from app.services.google_drive_service import drive_service
 from app.services.appsheet_service import appsheet_service
 
@@ -59,3 +61,37 @@ async def generate_menu(
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers=headers
     )
+
+@app.post("/api/v1/menus/generate/individual")
+async def generate_individual_signs(
+    request: IndividualSignRequest,
+    upload_to_drive: bool = Query(True)
+):
+    docx_stream = generate_individual_signs_docx(request)
+    
+    clean_event_name = request.event_name.split(".")[0]
+    safe_event_name = clean_event_name.replace(" ", "_")
+    filename = f"Individual_signs_{safe_event_name}.docx"
+    
+    if upload_to_drive:
+        result = drive_service.upload_file(docx_stream, filename)
+        if result["success"]:
+            # Callback to AppSheet (using download_link and the INDIVIDUAL column)
+            appsheet_result = appsheet_service.update_event_sign_link(
+                event_id=request.event_id,
+                view_link=result["download_link"],
+                column_name="SINGS_INDIVIDUAL_WORD"
+            )
+            result["appsheet_update"] = appsheet_result
+            
+            return Response(
+                content=json.dumps(result),
+                media_type="application/json"
+            )
+            
+    return Response(
+        content=docx_stream.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
