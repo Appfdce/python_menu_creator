@@ -86,11 +86,11 @@ def apply_borders_to_cell(cell):
 def create_grid_page(doc):
     """Creates a 3x3 layout table grid for the page."""
     # We use a 3x3 layout to add a spacer column in the middle
-    # and a merged center cell on the second row
+    # and a spacer row in the middle
     table = doc.add_table(rows=3, cols=3)
     table.autofit = False
     
-    # Set row heights: Top (6cm), Middle (6cm), Bottom (6cm)
+    # Set row heights: Top (6cm), Middle (6cm margin), Bottom (6cm)
     for row in table.rows:
         row.height = Cm(6)
         
@@ -99,9 +99,7 @@ def create_grid_page(doc):
     table.columns[1].width = Cm(4.7) # Spacer
     table.columns[2].width = Cm(11.5)
     
-    # Merge middle row for the center element
-    table.cell(1, 0).merge(table.cell(1, 2))
-    
+    # We leave the middle row and middle column empty as spacers
     return table
 
 
@@ -180,26 +178,24 @@ def generate_individual_signs_docx(request: IndividualSignRequest) -> BytesIO:
     
     total_items = len(items)
     
-    for i in range(0, total_items, 5):
+    for i in range(0, total_items, 4):
         if i > 0:
             doc.add_page_break()
             
         table = create_grid_page(doc)
-        page_items = items[i:i+5]
+        page_items = items[i:i+4]
         
-        # Pattern:
-        # R0C0 (Item 1), R0C1 (Item 2)
-        # R1 (Merged) (Item 3)
-        # R2C0 (Item 4), R2C1 (Item 5)
+        # Pattern (4 cards per page, corners only):
+        # R0C0 (Item 1), R0C2 (Item 2)
+        # R2C0 (Item 3), R2C2 (Item 4)
         
         # Mapping indices to table cells
         # cell_map: (page_index) -> (row, col)
         cell_map = {
             0: (0, 0),
             1: (0, 2),
-            2: (1, 0), # This is the merged center cell
-            3: (2, 0),
-            4: (2, 2)
+            2: (2, 0),
+            3: (2, 2)
         }
         
         for idx, item in enumerate(page_items):
