@@ -63,15 +63,15 @@ def format_cell(cell, item):
         run.font.color.rgb = RGBColor(0x66, 0x66, 0x66)
 
     # Logo (Bottom right)
-    if os.path.exists(LOGO_PATH):
-        logo_para = cell.add_paragraph()
-        logo_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        run = logo_para.add_run()
-        run.add_picture(LOGO_PATH, width=Cm(1.2))
-
-def apply_borders_to_cell(cell):
-    tcPr = cell._tc.get_or_add_tcPr()
-    tcBorders = OxmlElement('w:tcBorders')
+def apply_borders_to_table(table):
+    tblPr = table._element.xpath('w:tblPr')
+    if tblPr:
+        tblPr = tblPr[0]
+    else:
+        tblPr = OxmlElement('w:tblPr')
+        table._element.append(tblPr)
+        
+    tblBorders = OxmlElement('w:tblBorders')
     
     for border_name in ['top', 'left', 'bottom', 'right']:
         tag = OxmlElement(f'w:{border_name}')
@@ -79,9 +79,9 @@ def apply_borders_to_cell(cell):
         tag.set(qn('w:sz'), '12')
         tag.set(qn('w:space'), '0')
         tag.set(qn('w:color'), '5a2d5a')
-        tcBorders.append(tag)
+        tblBorders.append(tag)
         
-    tcPr.append(tcBorders)
+    tblPr.append(tblBorders)
 
 def create_grid_page(doc):
     """Creates a 3x3 layout table grid for the page."""
@@ -220,15 +220,15 @@ def generate_individual_signs_docx(request: IndividualSignRequest) -> BytesIO:
             tblW.set(qn('w:type'), 'dxa')
             tblPr.append(tblW)
             
+            # Apply full table borders
+            apply_borders_to_table(inner_table)
+            
             # Fixed dimensions for the card
             inner_table.columns[0].width = Cm(10)
             inner_table.rows[0].height = Cm(5.5)
             
             inner_cell = inner_table.cell(0, 0)
             inner_cell.width = Cm(10)
-            
-            # Apply borders to the nested table cell
-            apply_borders_to_cell(inner_cell)
             
             # Format text inside the card
             format_cell(inner_cell, item)
