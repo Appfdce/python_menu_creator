@@ -4,7 +4,7 @@ from io import BytesIO
 from docx import Document
 from docx.shared import Cm, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_ALIGN_VERTICAL
+from docx.enum.table import WD_ALIGN_VERTICAL, WD_TABLE_ALIGNMENT
 from docx.enum.section import WD_ORIENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -69,68 +69,41 @@ def format_cell(cell, item):
         run = logo_para.add_run()
         run.add_picture(LOGO_PATH, width=Cm(1.2))
 
-def create_grid_page(doc):
-    """Creates a 3x2 table grid for a page."""
-    table = doc.add_table(rows=3, cols=2)
-    # table.style = 'Table Grid' # Change to None or custom style for no borders if requested
-    # We want borders to match the user's design
+def apply_borders_to_cell(cell):
+    tcPr = cell._tc.get_or_add_tcPr()
+    tcBorders = OxmlElement('w:tcBorders')
     
-    # Set heights to approx 5cm to 6cm
+    for border_name in ['top', 'left', 'bottom', 'right']:
+        tag = OxmlElement(f'w:{border_name}')
+        tag.set(qn('w:val'), 'single')
+        tag.set(qn('w:sz'), '12')
+        tag.set(qn('w:space'), '0')
+        tag.set(qn('w:color'), '5a2d5a')
+        tcBorders.append(tag)
+        
+    tcPr.append(tcBorders)
+
+def create_grid_page(doc):
+    """Creates a 3x3 layout table grid for the page."""
+    # We use a 3x3 layout to add a spacer column in the middle
+    # and a merged center cell on the second row
+    table = doc.add_table(rows=3, cols=3)
+    table.autofit = False
+    
+    # Set row heights: Top (6cm), Middle (6cm), Bottom (6cm)
     for row in table.rows:
-        row.height = Cm(5.5)
+        row.height = Cm(6)
         
-    # Set widths to 8cm
-    for col in table.columns:
-        col.width = Cm(9) # Slightly wider than 8cm to fill page
-        
-    # Apply borders to all cells
-    borders_xml = """
-        <w:tcBorders xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
-            <w:top w:val="single" w:sz="12" w:space="0" w:color="5a2d5a"/>
-            <w:left w:val="single" w:sz="12" w:space="0" w:color="5a2d5a"/>
-            <w:bottom w:val="single" w:sz="12" w:space="0" w:color="5a2d5a"/>
-            <w:right w:val="single" w:sz="12" w:space="0" w:color="5a2d5a"/>
-        </w:tcBorders>
-    """
-    for row in table.rows:
-        for cell in row.cells:
-            tcPr = cell._tc.get_or_add_tcPr()
-            tcBorders = OxmlElement('w:tcBorders')
-            
-            top = OxmlElement('w:top')
-            top.set(qn('w:val'), 'single')
-            top.set(qn('w:sz'), '12')
-            top.set(qn('w:space'), '0')
-            top.set(qn('w:color'), '5a2d5a')
-            
-            bottom = OxmlElement('w:bottom')
-            bottom.set(qn('w:val'), 'single')
-            bottom.set(qn('w:sz'), '12')
-            bottom.set(qn('w:space'), '0')
-            bottom.set(qn('w:color'), '5a2d5a')
-            
-            left = OxmlElement('w:left')
-            left.set(qn('w:val'), 'single')
-            left.set(qn('w:sz'), '12')
-            left.set(qn('w:space'), '0')
-            left.set(qn('w:color'), '5a2d5a')
-            
-            right = OxmlElement('w:right')
-            right.set(qn('w:val'), 'single')
-            right.set(qn('w:sz'), '12')
-            right.set(qn('w:space'), '0')
-            right.set(qn('w:color'), '5a2d5a')
-            
-            tcBorders.append(top)
-            tcBorders.append(bottom)
-            tcBorders.append(left)
-            tcBorders.append(right)
-            tcPr.append(tcBorders)
-        
-    # Merge cells in the middle row for the center element
-    table.cell(1, 0).merge(table.cell(1, 1))
+    # Set column widths. Total width ~= 27.7cm for Landscape A4 minus margins
+    table.columns[0].width = Cm(11.5)
+    table.columns[1].width = Cm(4.7) # Spacer
+    table.columns[2].width = Cm(11.5)
+    
+    # Merge middle row for the center element
+    table.cell(1, 0).merge(table.cell(1, 2))
     
     return table
+
 
 def generate_individual_signs_docx(request: IndividualSignRequest) -> BytesIO:
     doc = Document()
@@ -223,16 +196,38 @@ def generate_individual_signs_docx(request: IndividualSignRequest) -> BytesIO:
         # cell_map: (page_index) -> (row, col)
         cell_map = {
             0: (0, 0),
-            1: (0, 1),
+            1: (0, 2),
             2: (1, 0), # This is the merged center cell
             3: (2, 0),
-            4: (2, 1)
+            4: (2, 2)
         }
         
         for idx, item in enumerate(page_items):
             row, col = cell_map[idx]
-            cell = table.cell(row, col)
-            format_cell(cell, item)
+            outer_cell = table.cell(row, col)
+            outer_cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+            
+            # Clear outer cell default paragraph to avoid weird margins
+            for paragraph in outer_cell.paragraphs:
+                p = paragraph._element
+                p.getparent().remove(p)
+                
+            # Create a nested 1x1 table for the actual card
+            inner_table = outer_cell.add_table(rows=1, cols=1)
+            inner_table.autofit = False
+            inner_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+            
+            # Fixed dimensions for the card
+            inner_table.columns[0].width = Cm(10)
+            inner_table.rows[0].height = Cm(5.5)
+            
+            inner_cell = inner_table.cell(0, 0)
+            
+            # Apply borders to the nested table cell
+            apply_borders_to_cell(inner_cell)
+            
+            # Format text inside the card
+            format_cell(inner_cell, item)
             
     # Save to memory stream
     docx_stream = BytesIO()
