@@ -1,4 +1,6 @@
-from fastapi import FastAPI, Response, Query
+from fastapi import FastAPI, Response, Query, Request
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 import logging
 import json
 
@@ -17,6 +19,30 @@ from app.schemas.estimate_total import EstimateTotalRequest
 import io
 
 app = FastAPI(title="Menu Creator Service")
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """
+    Custom handler to log the raw body when validation fails.
+    This helps identify if binary data (like a PDF) is being sent instead of JSON.
+    """
+    body = await request.body()
+    print(f"--- VALIDATION ERROR ---")
+    print(f"Method: {request.method} URL: {request.url}")
+    print(f"Headers: {request.headers}")
+    try:
+        # Try to show body as text for debugging
+        print(f"Body Preview: {body[:200].decode('utf-8', errors='replace')}")
+    except:
+        print(f"Body Preview (Binary): {body[:200]}")
+    
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.errors(),
+            "message": "The server expected JSON but received something else (maybe binary data or a PDF). Check your AppSheet Webhook 'Body' configuration."
+        }
+    )
 
 @app.get("/")
 async def root():
