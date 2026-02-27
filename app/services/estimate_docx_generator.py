@@ -180,8 +180,12 @@ class EstimateDocxGenerator:
                     dr = dp.add_run(meal.date_header)
                     dr.bold = True
                 
-                mp = main_cell.add_paragraph()
-                main_cell.add_paragraph(f"{meal.category_name}: {meal.time_range or ''}")
+                main_cell.add_paragraph() # Spacer
+                cat_p = main_cell.add_paragraph()
+                cat_time = f" ({meal.time_range})" if meal.time_range else ""
+                cat_run = cat_p.add_run(f"{meal.category_name}{cat_time}")
+                cat_run.bold = True
+                cat_run.font.color.rgb = RGBColor(0x61, 0x2d, 0x4b)
                 
                 if meal.description:
                     main_cell.add_paragraph(meal.description)
@@ -195,10 +199,20 @@ class EstimateDocxGenerator:
                     sub_r = sub_p.add_run(sub.name)
                     sub_r.bold = True
                     sub_r.underline = True
+                    sub_r.font.color.rgb = RGBColor(0, 0, 0)
+                    
                     if sub.description:
                         main_cell.add_paragraph(sub.description)
+                    
                     if sub.menu_list:
-                        main_cell.add_paragraph(sub.menu_list)
+                        # Split by comma to render as a list
+                        menus = [m.strip() for m in sub.menu_list.split(',') if m.strip()]
+                        for menu_item in menus:
+                            menu_p = main_cell.add_paragraph()
+                            menu_p.paragraph_format.left_indent = Cm(0.5)
+                            menu_run = menu_p.add_run(f"• {menu_item}")
+                            menu_run.bold = True
+                            menu_run.font.color.rgb = RGBColor(0x61, 0x2d, 0x4b)
                 
                 main_cell.add_paragraph()
 
