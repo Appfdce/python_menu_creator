@@ -10,3 +10,5 @@ tests/
 *.docx
 !template.docx
 !general_sign.docx
+!estimate_template.docx
+
