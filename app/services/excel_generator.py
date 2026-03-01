@@ -38,22 +38,32 @@ def generate_individual_excel(request: ExcelMenuRequest) -> BytesIO:
                 continue
                 
             # A subcategory might contain multiple concatenated menus "Menu1 || Diet1 , Menu2 || Diet2"
-            # It's typical in AppSheet List/EnumList that they are separated by " , "
+            # However, diet options or menu names themselves might contain commas.
+            # The user specified that the valid diet options are exactly "GF", "VG", "V".
             raw_parts = [m.strip() for m in item.menu.split(",")]
             raw_menus = []
+            
+            valid_diet_options = {"GF", "VG", "V"}
             
             for part in raw_parts:
                 if not part:
                     continue
-                # If it has "||", it's a new menu item
+                    
+                # If it has "||", it's definitely a new menu item
                 if "||" in part:
                     raw_menus.append(part)
-                # If it doesn't, it means it's a continuation of the previous diet options (e.g. GF , VG , V)
+                # If it's one of the exact diet options, it belongs to the previous menu item
+                elif part in valid_diet_options:
+                    if raw_menus:
+                        raw_menus[-1] += f", {part}"
+                    else:
+                        raw_menus.append(part)
+                # Otherwise, it does not have "||" and is not a diet option.
+                # It is likely a continuation of the previous menu item's NAME because the name contained a comma.
                 else:
                     if raw_menus:
                         raw_menus[-1] += f", {part}"
                     else:
-                        # Fallback if the first item somehow doesn't have "||"
                         raw_menus.append(part)
             
             for raw_menu in raw_menus:
