@@ -3,17 +3,49 @@ from io import BytesIO
 from typing import Tuple
 from app.schemas.excel_menu import ExcelMenuRequest
 
-def split_menu_text(full_text: str) -> Tuple[str, str]:
-    """Helper to split concatenated text 'Name || Diet Options' safely."""
-    if not full_text:
-        return "", ""
+def parse_concatenated_menus(full_text: str):
+    """
+    Parses a string like "Menu 1 || GF, V , Menu 2, with comma || VG"
+    Returns a list of tuples: [(Menu Name, Diet Options), ...]
+    """
+    if not full_text.strip():
+        return []
         
     parts = full_text.split("||")
-    name = parts[0].strip()
+    if not parts or len(parts) == 1:
+        cleaned = full_text.strip()
+        return [(cleaned, "")] if cleaned else []
+        
+    valid_diet_options = {"GF", "VG", "V", ""}
+    results = []
+    current_menu_name = parts[0].strip()
     
-    # Check if there's actually diet option part
-    diet = parts[1].strip() if len(parts) > 1 else ""
-    return name, diet
+    for i in range(1, len(parts)):
+        subparts = parts[i].split(",")
+        current_diet_options = []
+        next_menu_name_parts = []
+        found_next_menu = False
+        
+        for subpart in subparts:
+            cleaned = subpart.strip()
+            
+            if not found_next_menu:
+                if cleaned in valid_diet_options:
+                    if cleaned:
+                        current_diet_options.append(cleaned)
+                else:
+                    found_next_menu = True
+                    next_menu_name_parts.append(cleaned)
+            else:
+                next_menu_name_parts.append(cleaned)
+                
+        diet_str = ", ".join(current_diet_options)
+        if current_menu_name:
+            results.append((current_menu_name, diet_str))
+        
+        current_menu_name = ", ".join(next_menu_name_parts).strip()
+        
+    return results
 
 def generate_individual_excel(request: ExcelMenuRequest) -> BytesIO:
     """
@@ -37,41 +69,10 @@ def generate_individual_excel(request: ExcelMenuRequest) -> BytesIO:
             if not item.subcat.strip() and not item.menu.strip():
                 continue
                 
-            # A subcategory might contain multiple concatenated menus "Menu1 || Diet1 , Menu2 || Diet2"
-            # However, diet options or menu names themselves might contain commas.
-            # The user specified that the valid diet options are exactly "GF", "VG", "V".
-            raw_parts = [m.strip() for m in item.menu.split(",")]
-            raw_menus = []
+            # Use the new robust parsing function
+            parsed_menus = parse_concatenated_menus(item.menu)
             
-            valid_diet_options = {"GF", "VG", "V"}
-            
-            for part in raw_parts:
-                if not part:
-                    continue
-                    
-                # If it has "||", it's definitely a new menu item
-                if "||" in part:
-                    raw_menus.append(part)
-                # If it's one of the exact diet options, it belongs to the previous menu item
-                elif part in valid_diet_options:
-                    if raw_menus:
-                        raw_menus[-1] += f", {part}"
-                    else:
-                        raw_menus.append(part)
-                # Otherwise, it does not have "||" and is not a diet option.
-                # It is likely a continuation of the previous menu item's NAME because the name contained a comma.
-                else:
-                    if raw_menus:
-                        raw_menus[-1] += f", {part}"
-                    else:
-                        raw_menus.append(part)
-            
-            for raw_menu in raw_menus:
-                if not raw_menu:
-                    continue
-                    
-                menu_name, diet_options = split_menu_text(raw_menu)
-                
+            for menu_name, diet_options in parsed_menus:
                 row = base_data.copy()
                 row["Subcategory"] = item.subcat
                 row["Menu"] = menu_name
