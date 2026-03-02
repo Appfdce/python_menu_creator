@@ -3,6 +3,8 @@ from io import BytesIO
 from typing import Tuple
 from app.schemas.excel_menu import ExcelMenuRequest
 
+import re
+
 def parse_concatenated_menus(full_text: str):
     """
     Parses a string like "Menu 1 || Description 1 || GF, V , Menu 2 .. || VG"
@@ -11,94 +13,97 @@ def parse_concatenated_menus(full_text: str):
     """
     if not full_text.strip():
         return []
-        
-    parts = full_text.split("||")
-    if not parts or len(parts) == 1:
-        cleaned = full_text.strip()
-        return [(cleaned, "", "")] if cleaned else []
-        
-    valid_diet_options = {"GF", "VG", "V", ""}
-    results = []
-    
-    # Pre-process parts. AppSheet might send "Name || Diet" OR "Name || Description || Diet"
-    # To handle arbitrary splits correctly, we group the parts first.
-    def finalize_menu(name_chunk, desc_chunk, diet_str):
-        name = name_chunk.strip()
-        # If there's no desc chunk, it implies the original format "Name || Diet" was used.
-        desc = desc_chunk.strip() if desc_chunk is not None else ""
-        if name:
-            results.append((name, desc, diet_str))
 
-    current_menu_name = parts[0].strip()
-    current_menu_desc = None
-    
-    # We iterate over the remaining parts broken by ||
+    parts = [p.strip() for p in full_text.split("||")]
+    if len(parts) == 1:
+        return [(parts[0], "", "")]
+
+    valid_diets = {"V", "VG", "GF", "DF", "NF", ""}
+
+    results = []
+    current_name = parts[0]
+    current_desc = ""
+
+    def finalize(name, desc, diet):
+        if name:
+            results.append((name.strip(), (desc or "").strip(), diet.strip()))
+
     for i in range(1, len(parts)):
-        subparts = parts[i].split(",")
-        current_diet_options = []
-        next_menu_name_parts = []
-        found_next_menu = False
+        part = parts[i]
+        tokens = [t.strip() for t in part.split(",")]
         
-        # Determine if this part has valid diet options or if it contains the start of the next menu
-        for subpart in subparts:
-            cleaned = subpart.strip()
-            
-            if not found_next_menu:
-                if cleaned in valid_diet_options:
-                    if cleaned:
-                        current_diet_options.append(cleaned)
-                else:
-                    found_next_menu = True
-                    next_menu_name_parts.append(cleaned)
+        diet_tokens = []
+        name_tokens = []
+        found_name = False
+        
+        for t in tokens:
+            if not found_name and (t in valid_diets or not t):
+                diet_tokens.append(t)
             else:
-                next_menu_name_parts.append(cleaned)
+                found_name = True
+                name_tokens.append(t)
                 
-        # Now we decide whether this chunk was a diet string, or a middle description chunk.
-        # If found_next_menu is False AND we haven't seen a description yet AND there is another || coming up,
-        # it is possible this entire block is a description string.
-        # But given the strict comma-split logic, a description without a comma would be swallowed into current_diet_options
-        # if it happened to match "GF", "VG", etc.
-        # A safer heuristic: If we have a next chunk (i < len(parts) - 1) and NO diet options were found in this block, 
-        # or we explicitly define the structure, we can map it.
-        # Standard format defined by user: "Name || Menu Description || Diet"
-        
-        # If there's another "||", the current parts[i] before the comma MIGHT be the description.
-        # Let's rebuild the un-split string for this section
-        rebuilt_section = parts[i]
-        
-        # Because AppSheet lists are comma separated, if there's a next menu, it's after a comma.
-        if i < len(parts) - 1:
-            # We are in the middle chunk. If the original string had 2 "||" for this item, 
-            # this chunk is the description.
-            if current_menu_desc is None:
-                # It's a description chunk. Next menus will be found in later chunks.
-                # Careful: The next menu could start in this chunk if it's comma separated.
-                if found_next_menu:
-                     # e.g., "Desc , NextMenuName". This means the current item ends here without diet options.
-                     diet_str = ", ".join(current_diet_options)
-                     current_menu_desc = rebuilt_section.split(',')[0].strip() # Simplistic extraction
-                     finalize_menu(current_menu_name, current_menu_desc, diet_str)
-                     
-                     current_menu_name = ", ".join(next_menu_name_parts).strip()
-                     current_menu_desc = None
+        if found_name:
+            # We found a boundary!
+            diet_str = ", ".join(diet_tokens)
+            next_name = ", ".join(name_tokens)
+            
+            if diet_str or (not diet_str and not current_desc):
+                if not diet_tokens:
+                    # simplistic fallback: the first comma separates the desc from next name
+                    splits = part.split(",", 1)
+                    if len(splits) == 2:
+                        desc_str = splits[0].strip()
+                        next_name = splits[1].strip()
+                        if current_desc:
+                            finalize(current_name, current_desc, desc_str)
+                        else:
+                            finalize(current_name, desc_str, "")
+                        current_name = next_name
+                        current_desc = ""
+                    else:
+                        if current_desc:
+                             finalize(current_name, current_desc, part)
+                             current_name = ""
+                             current_desc = ""
+                        else:
+                             current_desc = part
                 else:
-                     # It's entirely description
-                     current_menu_desc = rebuilt_section.strip()
+                    if current_desc:
+                        finalize(current_name, current_desc, diet_str)
+                    else:
+                        finalize(current_name, "", diet_str)
+                    current_name = next_name
+                    current_desc = ""
             else:
-                # We already have a desc. Find diet options and next menu.
-                diet_str = ", ".join(current_diet_options)
-                finalize_menu(current_menu_name, current_menu_desc, diet_str)
-                current_menu_name = ", ".join(next_menu_name_parts).strip()
-                current_menu_desc = None
+                 finalize(current_name, current_desc, "")
+                 current_name = next_name
+                 current_desc = ""
         else:
-            # Final chunk
-            diet_str = ", ".join(current_diet_options)
-            finalize_menu(current_menu_name, current_menu_desc, diet_str)
-            current_menu_name = ", ".join(next_menu_name_parts).strip()
-            # If there's dangling text after the last diet options (e.g. valid menu without || at the end), add it
-            if current_menu_name:
-                finalize_menu(current_menu_name, None, "")
-        
+            # Entire part is diet options
+            if i == len(parts) - 1:
+                is_diet = all(t in valid_diets or not t for t in tokens)
+                if current_desc:
+                    finalize(current_name, current_desc, part)
+                else:
+                    if is_diet and part:
+                        finalize(current_name, "", part)
+                    else:
+                        finalize(current_name, part, "")
+                current_name = ""
+                current_desc = ""
+            else:
+                if current_desc:
+                    finalize(current_name, current_desc, part)
+                    current_name = ""
+                    current_desc = ""
+                else:
+                    current_desc = part
+
+    # Catch dangling 
+    if current_name:
+         finalize(current_name, current_desc, "")
+         
     return results
 
 def sort_dataframe_by_date(df: pd.DataFrame) -> pd.DataFrame:
