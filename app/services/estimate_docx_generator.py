@@ -205,14 +205,43 @@ class EstimateDocxGenerator:
                         main_cell.add_paragraph(sub.description)
                     
                     if sub.menu_list:
-                        # Split by comma to render as a list
-                        menus = [m.strip() for m in sub.menu_list.split(',') if m.strip()]
+                        # Extract items using AppSheet's natural comma separation
+                        # AppSheet automatically joins list items with " , "
+                        if " , " in sub.menu_list:
+                            raw_menus = sub.menu_list.split(" , ")
+                        else:
+                            raw_menus = sub.menu_list.split(",")
+                            
+                        menus = [m.strip() for m in raw_menus if m.strip()]
+                        
                         for menu_item in menus:
+                            # Parse format: "Name || Description || Diet Options"
+                            parts = [p.strip() for p in menu_item.split("||")]
+                            name = parts[0] if len(parts) > 0 else menu_item
+                            desc = parts[1] if len(parts) > 1 else ""
+                            diet = parts[2] if len(parts) > 2 else ""
+
                             menu_p = main_cell.add_paragraph()
                             menu_p.paragraph_format.left_indent = Cm(0.5)
-                            menu_run = menu_p.add_run(f"• {menu_item}")
+                            
+                            # Add bullet and name (Purple, Bold)
+                            menu_run = menu_p.add_run(f"• {name}")
                             menu_run.bold = True
                             menu_run.font.color.rgb = RGBColor(0x61, 0x2d, 0x4b)
+                            
+                            # Add diet details (Purple, Regular, Parentheses)
+                            if diet:
+                                diet_run = menu_p.add_run(f" ({diet})")
+                                diet_run.font.color.rgb = RGBColor(0x61, 0x2d, 0x4b)
+                            
+                            # Add description (Gray, Italic, Smaller, Indented)
+                            if desc:
+                                desc_p = main_cell.add_paragraph()
+                                desc_p.paragraph_format.left_indent = Cm(1.0)
+                                desc_run = desc_p.add_run(desc)
+                                desc_run.italic = True
+                                desc_run.font.size = Pt(10)
+                                desc_run.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
                 
                 main_cell.add_paragraph()
 
