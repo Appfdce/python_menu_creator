@@ -175,7 +175,7 @@ async def generate_estimate_total(
         if result["success"]:
             # Callback to AppSheet (Add new row to BDProposal History)
             appsheet_result = appsheet_service.add_proposal_history_row(
-                event_id=request.event_id,
+                event_id=validated_request.event_id,
                 doc_url=result["download_link"]
             )
             result["appsheet_update"] = appsheet_result
