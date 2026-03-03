@@ -36,14 +36,31 @@ test_payload = {
       "total_food_por_dia": "$5,000.00",
       "subcategories": [
         {
-          "name": "Pastries",
-          "description": "Assorted freshly baked goods",
-          "menu_list": "Croissants\nMuffins\nGluten-Free Scones"
+          "name": "Appetizers",
+          "description": "Starters for the table",
+          "items": [
+            {
+              "name": "Bruschetta",
+              "description": "Chopped tomatoes, basil, and garlic on toasted focaccia",
+              "diet_options": "VG"
+            },
+            {
+              "name": "Mini Meatballs",
+              "description": "With marinara dipping sauce",
+              "diet_options": ""
+            }
+          ]
         },
         {
-          "name": "Beverages",
-          "description": "Hot and cold drinks",
-          "menu_list": "Coffee\nTea\nFresh Orange Juice"
+          "name": "Main Course",
+          "description": "The big event",
+          "items": [
+            {
+              "name": "Grilled Lemon Herb Chicken",
+              "description": "",
+              "diet_options": "GF"
+            }
+          ]
         }
       ]
     }

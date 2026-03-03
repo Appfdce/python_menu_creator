@@ -20,10 +20,15 @@ class EventInfo(BaseModel):
     guests: int = 0
     dietary_restrictions: str = ""
 
+class MenuItem(BaseModel):
+    name: str = ""
+    description: str = ""
+    diet_options: str = ""
+
 class Subcategory(BaseModel):
     name: str = ""
     description: str = ""
-    menu_list: str = ""
+    items: List[MenuItem] = []
 
 class Meal(BaseModel):
     show_date_header: bool = False

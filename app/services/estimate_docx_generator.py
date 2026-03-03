@@ -204,21 +204,14 @@ class EstimateDocxGenerator:
                     if sub.description:
                         main_cell.add_paragraph(sub.description)
                     
-                    if sub.menu_list:
-                        # Extract items using a strictly defined delimiter "|ITEM|"
-                        # Commas are prevalent in names, descriptions, and diet options,
-                        # so splitting by comma natively is too unsafe.
-                        # AppSheet will send multiple items with the default " , " joined list,
-                        # but we must use SUBSTITUTE in AppSheet to replace " , " with " |ITEM| "
-                        raw_menus = sub.menu_list.split(" |ITEM| ")
-                        menus = [m.strip() for m in raw_menus if m.strip()]
-                        
-                        for menu_item in menus:
-                            # Parse format: "Name || Description || Diet Options"
-                            parts = [p.strip() for p in menu_item.split("||")]
-                            name = parts[0] if len(parts) > 0 else menu_item
-                            desc = parts[1] if len(parts) > 1 else ""
-                            diet = parts[2] if len(parts) > 2 else ""
+                    if sub.items:
+                        for menu_item in sub.items:
+                            name = menu_item.name.strip()
+                            desc = menu_item.description.strip()
+                            diet = menu_item.diet_options.strip()
+
+                            if not name and not desc:
+                                continue
 
                             menu_p = main_cell.add_paragraph()
                             menu_p.paragraph_format.left_indent = Cm(0.5)

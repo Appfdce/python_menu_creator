@@ -128,16 +128,44 @@ async def generate_individual_signs(
 
 @app.post("/api/v1/menus/generate-estimate-total", response_class=Response)
 async def generate_estimate_total(
-    request: EstimateTotalRequest,
+    request: Request,
     upload_to_drive: bool = Query(True)
 ):
     """
     Generates a Word Estimate based on the provided JSON payload.
     """
-    generator = EstimateDocxGenerator()
-    docx_stream = generator.generate_docx(request)
+    import re
+    import json
+    from fastapi import HTTPException
     
-    clean_event_name = request.event.name.split(".")[0] if request.event.name else "Unnamed"
+    # 1. Read raw body and sanitize trailing commas
+    raw_body = await request.body()
+    decoded_body = raw_body.decode("utf-8")
+    
+    # AppSheet templates inherently leave trailing commas in JSON arrays
+    # meaning: [{"foo": "bar"},] -> this breaks native JSON parsers
+    sanitized_body = re.sub(r',\s*([\]}])', r'\1', decoded_body)
+    
+    # 2. Parse into Dictionary
+    try:
+        parsed_json = json.loads(sanitized_body)
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON Decode Error after sanitization: {e}")
+        logger.error(f"Sanitized Body: {sanitized_body[:1000]}...")
+        raise HTTPException(status_code=400, detail=f"Invalid JSON format. Check AppSheet template: {e}")
+        
+    # 3. Validate against Pydantic Schema
+    try:
+        validated_request = EstimateTotalRequest(**parsed_json)
+    except Exception as e:
+        logger.error(f"Pydantic Validation Error: {e}")
+        raise HTTPException(status_code=422, detail=f"Schema Validation Error: {e}")
+
+    # 4. Generate DOCX
+    generator = EstimateDocxGenerator()
+    docx_stream = generator.generate_docx(validated_request)
+    
+    clean_event_name = validated_request.event.name.split(".")[0] if validated_request.event.name else "Unnamed"
     safe_event_name = clean_event_name.replace(" ", "_").replace("/", "-")
     filename = f"Estimate_{safe_event_name}.docx"
 
