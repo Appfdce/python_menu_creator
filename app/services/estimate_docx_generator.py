@@ -57,21 +57,23 @@ class EstimateDocxGenerator:
         # Replace in main paragraphs
         process_paragraphs(doc.paragraphs)
 
+        # Helper to process XML nodes (needed for Text Boxes / Shapes in Headers)
+        def process_xml_element(element):
+            # w:t is the WordprocessingML tag for text
+            for t_element in element.iter("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t"):
+                if t_element.text:
+                    for key, value in replacements.items():
+                        if key in t_element.text:
+                            t_element.text = t_element.text.replace(key, str(value or ""))
+
         # Replace in Headers (Important for the new repeated sidebar layout)
+        # Includes standard paragraphs, tables, AND floating shapes (Text Boxes)
         for section in doc.sections:
             if section.header:
-                process_paragraphs(section.header.paragraphs)
-                for table in section.header.tables:
-                    for row in table.rows:
-                        for cell in row.cells:
-                            process_paragraphs(cell.paragraphs)
+                process_xml_element(section.header._element)
             
             if section.first_page_header:
-                process_paragraphs(section.first_page_header.paragraphs)
-                for table in section.first_page_header.tables:
-                    for row in table.rows:
-                        for cell in row.cells:
-                            process_paragraphs(cell.paragraphs)
+                process_xml_element(section.first_page_header._element)
 
         # Replace in tables in the main body
         for table in doc.tables:
