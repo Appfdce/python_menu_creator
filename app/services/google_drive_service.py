@@ -52,49 +52,63 @@ class GoogleDriveService:
             return None
 
     def upload_file(self, file_stream: BytesIO, filename: str) -> dict:
-        """Uploads a file stream to the specified Google Drive folder."""
+        """Uploads a file stream to the specified Google Drive folder with retries."""
         if not self.service:
             return {"success": False, "error": "Google Drive service not authenticated (check OAuth2 credentials)"}
 
-        try:
-            logger.info(f"Uploading file to Drive: {filename}")
-            file_metadata = {
-                'name': filename,
-                'parents': [self.folder_id] if self.folder_id else []
-            }
-            
-            # Reset stream position to beginning
-            file_stream.seek(0)
-            
-            media = MediaIoBaseUpload(
-                file_stream, 
-                mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                resumable=True
-            )
-            
-            file = self.service.files().create(
-                body=file_metadata,
-                media_body=media,
-                fields='id, webViewLink, webContentLink'
-            ).execute()
-            
-            view_link = file.get('webViewLink')
-            download_link = file.get('webContentLink')
-            file_id = file.get('id')
-            logger.info(f"Successfully uploaded to Drive. ID: {file_id}")
-            logger.info(f"View Link: {view_link}")
-            logger.info(f"Download Link: {download_link}")
-            
-            return {
-                "success": True,
-                "file_id": file_id,
-                "view_link": view_link,
-                "download_link": download_link
-            }
-            
-        except Exception as e:
-            logger.error(f"Error uploading file to Google Drive: {e}")
-            return {"success": False, "error": str(e)}
+        # Reset stream position to beginning
+        file_stream.seek(0)
+        
+        file_metadata = {
+            'name': filename,
+            'parents': [self.folder_id] if self.folder_id else []
+        }
+        
+        # We disable resumable=True for small files (like these DOCX) 
+        # as it's more stable on certain network environments (Render)
+        media = MediaIoBaseUpload(
+            file_stream, 
+            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            resumable=False
+        )
+
+        max_retries = 3
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                if attempt > 0:
+                    logger.info(f"Retrying upload to Drive (attempt {attempt + 1}/{max_retries})...")
+                
+                # Reset stream for each attempt
+                file_stream.seek(0)
+                
+                file = self.service.files().create(
+                    body=file_metadata,
+                    media_body=media,
+                    fields='id, webViewLink, webContentLink'
+                ).execute()
+                
+                view_link = file.get('webViewLink')
+                download_link = file.get('webContentLink')
+                file_id = file.get('id')
+                logger.info(f"Successfully uploaded to Drive. ID: {file_id}")
+                
+                return {
+                    "success": True,
+                    "file_id": file_id,
+                    "view_link": view_link,
+                    "download_link": download_link
+                }
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Upload attempt {attempt + 1} failed: {e}")
+                # Optional: add a small delay if needed
+                import time
+                time.sleep(1)
+        
+        logger.error(f"Failed to upload to Google Drive after {max_retries} attempts: {last_error}")
+        return {"success": False, "error": str(last_error)}
 
 # Singleton instance
 drive_service = GoogleDriveService()
