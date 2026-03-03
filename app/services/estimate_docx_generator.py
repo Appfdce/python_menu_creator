@@ -162,17 +162,34 @@ class EstimateDocxGenerator:
         else:
             container = marker_para # We'll use insert_paragraph_before logic
 
-        def add_p(text=""):
+        def add_p(text="", alignment=None, line_spacing=1.4, space_after=Pt(6)):
             if marker_para:
-                return marker_para.insert_paragraph_before(text)
-            return doc.add_paragraph(text)
+                p = marker_para.insert_paragraph_before(text)
+            else:
+                p = doc.add_paragraph(text)
+            
+            if alignment:
+                p.alignment = alignment
+            
+            p.paragraph_format.line_spacing = line_spacing
+            p.paragraph_format.space_after = space_after
+            return p
+
+        def style_run(run, font_name="Open Sans", size=None, bold=False, italic=False, underline=False, color=0x333333):
+            run.font.name = font_name
+            if size:
+                run.font.size = size
+            run.bold = bold
+            run.italic = italic
+            run.underline = underline
+            if color is not None:
+                run.font.color.rgb = RGBColor((color >> 16) & 0xff, (color >> 8) & 0xff, color & 0xff)
+            return run
 
         # --- Main Content ---
         hp = add_p()
         hr = hp.add_run("PROPOSAL OF SERVICES")
-        hr.bold = True
-        hr.font.size = Pt(14)
-        hr.font.color.rgb = RGBColor(0x61, 0x2d, 0x4b)
+        style_run(hr, size=Pt(14), bold=True, color=0x612d4b)
         
         add_p(request.event.end_date_formatted)
         add_p()
@@ -184,17 +201,17 @@ class EstimateDocxGenerator:
                 if meal.show_date_header:
                     dp = add_p()
                     dr = dp.add_run(meal.date_header)
-                    dr.bold = True
+                    style_run(dr, bold=True)
                 
                 add_p() # Spacer
                 cat_p = add_p()
                 cat_time = f" ({meal.time_range})" if meal.time_range else ""
-                cat_run = cat_p.add_run(f"{meal.category_name}{cat_time}")
-                cat_run.bold = True
-                cat_run.font.color.rgb = RGBColor(0x61, 0x2d, 0x4b)
+                cat_run = cat_p.add_run(f"{meal.category_name.upper()}{cat_time}")
+                style_run(cat_run, size=Pt(14), bold=True, color=0x612d4b)
                 
                 if meal.description:
-                    add_p(meal.description)
+                    p = add_p(meal.description)
+                    style_run(p.runs[0])
                 
                 for sub in meal.subcategories:
                     # Skip empty subcategories (common in flat AppSheet structures)
@@ -203,12 +220,11 @@ class EstimateDocxGenerator:
 
                     sub_p = add_p()
                     sub_r = sub_p.add_run(sub.name)
-                    sub_r.bold = True
-                    sub_r.underline = True
-                    sub_r.font.color.rgb = RGBColor(0, 0, 0)
+                    style_run(sub_r, bold=True, underline=True, color=0x333333)
                     
                     if sub.description:
-                        add_p(sub.description)
+                        p = add_p(sub.description)
+                        style_run(p.runs[0])
                     
                     if sub.items:
                         for menu_item in sub.items:
@@ -219,35 +235,31 @@ class EstimateDocxGenerator:
                             if not name and not desc:
                                 continue
 
-                            menu_p = add_p()
+                            menu_p = add_p(space_after=Pt(2))
                             menu_p.paragraph_format.left_indent = Cm(0.5)
                             
-                            # Add bullet and name (Purple, Bold)
+                            # Add bullet and name (Standard body color, Underlined per HTML)
                             menu_run = menu_p.add_run(f"• {name}")
-                            menu_run.bold = True
-                            menu_run.font.color.rgb = RGBColor(0x61, 0x2d, 0x4b)
+                            style_run(menu_run, size=Pt(13), bold=True, underline=True)
                             
                             # Add diet details (Purple, Regular, Parentheses)
                             if diet:
                                 diet_run = menu_p.add_run(f" ({diet})")
-                                diet_run.font.color.rgb = RGBColor(0x61, 0x2d, 0x4b)
+                                style_run(diet_run, size=Pt(11), color=0x612d4b)
                             
                             # Add description (Gray, Italic, Smaller, Indented)
                             if desc:
-                                desc_p = add_p()
+                                desc_p = add_p(space_after=Pt(8))
                                 desc_p.paragraph_format.left_indent = Cm(1.0)
                                 desc_run = desc_p.add_run(desc)
-                                desc_run.italic = True
-                                desc_run.font.size = Pt(10)
-                                desc_run.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
+                                style_run(desc_run, size=Pt(10), italic=True, color=0x555555)
                 
                 add_p()
 
         # Financials
         fin_title = add_p()
         fin_run = fin_title.add_run("Estimation")
-        fin_run.bold = True
-        fin_run.font.color.rgb = RGBColor(0x61, 0x2d, 0x4b)
+        style_run(fin_run, size=Pt(14), bold=True, color=0x612d4b)
         
         for label, val in [
             ("Food", request.financials.total_food_service),
@@ -261,9 +273,21 @@ class EstimateDocxGenerator:
             p.add_run(val)
             
         total_p = add_p()
+        # Add a top border manually via XML for the total
+        from docx.oxml.ns import qn
+        from docx.oxml import OxmlElement
+        p_pr = total_p._element.get_or_add_pPr()
+        p_bdr = OxmlElement('w:pBdr')
+        top = OxmlElement('w:top')
+        top.set(qn('w:val'), 'single')
+        top.set(qn('w:sz'), '12') # 1.5 pt
+        top.set(qn('w:space'), '4')
+        top.set(qn('w:color'), '612D4B')
+        p_bdr.append(top)
+        p_pr.append(p_bdr)
+
         total_r = total_p.add_run(f"Total Estimate: {request.financials.total_estimate}")
-        total_r.bold = True
-        total_r.font.size = Pt(13)
+        style_run(total_r, size=Pt(13), bold=True, color=0x612d4b)
 
         # Remove the marker paragraph
         if marker_para:
