@@ -11,7 +11,7 @@ from app.schemas.estimate_total import EstimateTotalRequest
 
 logger = logging.getLogger(__name__)
 
-TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "estimate_temaplate.docx")
+TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "estimate_template.docx")
 
 class EstimateDocxGenerator:
     def __init__(self, template_path=TEMPLATE_PATH):
