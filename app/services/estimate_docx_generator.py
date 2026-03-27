@@ -204,7 +204,17 @@ class EstimateDocxGenerator:
         # 2. Labor
         if request.labor_services:
             add_p("Labor Service Fees", bold=True, size=Pt(12), color=0x612d4b, space_before=Pt(15))
+            
+            # De-duplicate labor services based on content (preserve order)
+            seen_labor = set()
+            unique_labor = []
             for labor in request.labor_services:
+                key = (labor.date_header, labor.hours, labor.name, labor.total)
+                if key not in seen_labor:
+                    seen_labor.add(key)
+                    unique_labor.append(labor)
+
+            for labor in unique_labor:
                 if labor.show_date_header:
                     add_p(labor.date_header, bold=True, space_before=Pt(6))
                 if labor.show_hours_header:
@@ -216,7 +226,17 @@ class EstimateDocxGenerator:
         # 3. Extras
         if request.extras_events:
             add_p("Extras Services", bold=True, size=Pt(12), color=0x612d4b, space_before=Pt(15))
+            
+            # De-duplicate extras events (preserve order)
+            seen_extras = set()
+            unique_extras = []
             for extra in request.extras_events:
+                key = (extra.date_header, extra.name, extra.total, extra.provide_by_client)
+                if key not in seen_extras:
+                    seen_extras.add(key)
+                    unique_extras.append(extra)
+
+            for extra in unique_extras:
                 if extra.show_date_header:
                     add_p(extra.date_header, bold=True)
                 
