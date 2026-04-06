@@ -6,6 +6,7 @@ from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
+import mimetypes
 
 # Scopes required for Google Drive API
 SCOPES = ['https://www.googleapis.com/auth/drive']
@@ -64,11 +65,12 @@ class GoogleDriveService:
             'parents': [self.folder_id] if self.folder_id else []
         }
         
-        # We disable resumable=True for small files (like these DOCX) 
-        # as it's more stable on certain network environments (Render)
+        # Guess mimetype based on filename or fallback
+        mime_type = mimetypes.guess_type(filename)[0] or 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        
         media = MediaIoBaseUpload(
             file_stream, 
-            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            mimetype=mime_type,
             resumable=False
         )
 
@@ -89,9 +91,20 @@ class GoogleDriveService:
                     fields='id, webViewLink, webContentLink'
                 ).execute()
                 
+                file_id = file.get('id')
+                
+                # Set permissions so anyone with the link can access (reader)
+                try:
+                    self.service.permissions().create(
+                        fileId=file_id,
+                        body={'type': 'anyone', 'role': 'reader'}
+                    ).execute()
+                    logger.info(f"Permissions set to 'public reader' for file {file_id}")
+                except Exception as perm_error:
+                    logger.warning(f"Could not set public permissions for file {file_id}: {perm_error}")
+
                 view_link = file.get('webViewLink')
                 download_link = file.get('webContentLink')
-                file_id = file.get('id')
                 logger.info(f"Successfully uploaded to Drive. ID: {file_id}")
                 
                 return {
