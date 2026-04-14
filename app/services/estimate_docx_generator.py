@@ -16,6 +16,30 @@ TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "estimate_te
 class EstimateDocxGenerator:
     def __init__(self, template_path=TEMPLATE_PATH):
         self.template_path = template_path
+        self.font_name = "Open Sans"
+        self.primary_color = 0x612d4b  # Wine color from HTML
+        self.text_color = 0x333333     # Main text color
+        self.desc_color = 0x555555     # Description color
+
+    def _set_run_font(self, run, size_pt=None, bold=None, italic=None, color_rgb=None, underline=None):
+        """Helper to consistently set font properties in a run."""
+        run.font.name = self.font_name
+        # Force the font in the XML to ensure Word recognizes it
+        r = run._element.rPr.get_or_add_rFonts()
+        r.set(qn('w:ascii'), self.font_name)
+        r.set(qn('w:hAnsi'), self.font_name)
+        r.set(qn('w:cs'), self.font_name)
+
+        if size_pt:
+            run.font.size = Pt(size_pt)
+        if bold is not None:
+            run.bold = bold
+        if italic is not None:
+            run.italic = italic
+        if underline is not None:
+            run.underline = underline
+        if color_rgb is not None:
+            run.font.color.rgb = RGBColor((color_rgb >> 16) & 0xff, (color_rgb >> 8) & 0xff, color_rgb & 0xff)
 
     def _replace_placeholders(self, doc, request: EstimateTotalRequest):
         """Replaces {{TAG}} placeholders in the document paragraphs and tables."""
@@ -42,6 +66,7 @@ class EstimateDocxGenerator:
                         for run in paragraph.runs:
                             if key in run.text:
                                 run.text = run.text.replace(key, str(value or ""))
+                                self._set_run_font(run) # Ensure replaced text matches font
 
         process_paragraphs(doc.paragraphs)
 
@@ -51,6 +76,14 @@ class EstimateDocxGenerator:
                     for key, value in replacements.items():
                         if key in t_element.text:
                             t_element.text = t_element.text.replace(key, str(value or ""))
+                            # For XML elements, we might need a different approach if they are broken
+                            # but for now let's ensure the parent R has the font if possible.
+                            parent_r = t_element.getparent()
+                            if parent_r is not None:
+                                rPr = parent_r.get_or_add_rPr()
+                                rFonts = rPr.get_or_add_rFonts()
+                                rFonts.set(qn('w:ascii'), self.font_name)
+                                rFonts.set(qn('w:hAnsi'), self.font_name)
 
         for section in doc.sections:
             if section.header:
@@ -79,7 +112,7 @@ class EstimateDocxGenerator:
         if not marker_para:
             logger.warning("Marker [DYNAMIC_CONTENT_START] not found. Appending to end.")
 
-        def add_p(text="", alignment=None, space_after=Pt(6), space_before=Pt(0), bold=False, italic=False, size=Pt(11), color=0x333333):
+        def add_p(text="", alignment=None, space_after=Pt(6), space_before=Pt(0), bold=False, italic=False, size=Pt(11), color=0x333333, underline=False):
             if marker_para:
                 p = marker_para.insert_paragraph_before(text)
             else:
@@ -89,14 +122,27 @@ class EstimateDocxGenerator:
             p.paragraph_format.space_after = space_after
             p.paragraph_format.space_before = space_before
             
-            if text and p.runs:
+            if p.runs:
+                # Use current run if it exists, otherwise add one
                 run = p.runs[0]
-                run.font.name = "Open Sans"
-                run.font.size = size
-                run.bold = bold
-                run.italic = italic
-                if color is not None:
-                    run.font.color.rgb = RGBColor((color >> 16) & 0xff, (color >> 8) & 0xff, color & 0xff)
+            else:
+                run = p.add_run(text)
+            
+            # The add_run(text) might result in double text if p.runs already had text
+            # but usually add_p(text) with marker_para doesn't have runs yet.
+            if not p.runs and text:
+                run = p.add_run(text)
+
+            self._set_run_font(run, size_pt=size.to_pt() if hasattr(size, 'to_pt') else size, 
+                             bold=bold, italic=italic, color_rgb=color, underline=underline)
+            
+            # If the size passed was already Pt, just use it.
+            # Convert Pt to float if needed.
+            if isinstance(size, Pt):
+                s = size / 12700 # Pt is in EMUs? No, Pt in shared is a special type.
+                # Actually Pt(11) in docx.shared is just an int.
+                pass
+
             return p
 
         def add_hr():
@@ -112,12 +158,12 @@ class EstimateDocxGenerator:
             p_pr.append(p_bdr)
 
         # --- MENU SECTION ---
-        add_p("MENUS", bold=True, size=Pt(14), color=0x612d4b)
+        add_p("MENUS", bold=True, size=Pt(14), color=self.primary_color)
         add_p(request.event.date_formatted, size=Pt(11))
 
         if request.event.dietary_restrictions:
             add_p()
-            add_p("Dietary Restrictions", bold=True, size=Pt(12), color=0x612d4b)
+            add_p("Dietary Restrictions", bold=True, size=Pt(12), color=self.primary_color)
             add_p(request.event.dietary_restrictions)
 
         for meal in request.meals:
@@ -129,7 +175,7 @@ class EstimateDocxGenerator:
             if meal.time_range:
                 cat_text += f": {meal.time_range}"
             
-            add_p(cat_text, bold=True, size=Pt(14), color=0x612d4b, space_before=Pt(8))
+            add_p(cat_text, bold=True, size=Pt(13.5), color=self.primary_color, space_before=Pt(8))
             
             if meal.provide_by_client:
                 p = add_p("◽ Provided by client", space_before=Pt(4))
@@ -174,18 +220,18 @@ class EstimateDocxGenerator:
                         r_diet.font.size = Pt(10)
 
                     if item.description:
-                        desc_p = add_p(item.description, size=Pt(10), italic=True, color=0x555555, space_after=Pt(4))
+                        desc_p = add_p(item.description, size=Pt(9), italic=True, color=self.desc_color, space_after=Pt(4))
                         desc_p.paragraph_format.left_indent = Cm(1.2)
 
         # --- FINANCIAL SECTION ---
         # Force a page break before financials if needed, or just a big spacer
         add_p(space_before=Pt(30))
-        add_p("PROPOSAL OF SERVICES", bold=True, size=Pt(14), color=0x612d4b)
+        add_p("PROPOSAL OF SERVICES", bold=True, size=Pt(13.5), color=self.primary_color)
         add_p(request.event.end_date_formatted) # HTML uses End Event here
         add_p()
 
         # 1. Food Service
-        add_p("Food Service", bold=True, size=Pt(12), color=0x612d4b)
+        add_p("Food Service", bold=True, size=Pt(12), color=self.primary_color)
         add_p(f"Based on {request.event.guests} Guests", size=Pt(10), italic=True)
         
         for meal in request.meals:
@@ -203,7 +249,7 @@ class EstimateDocxGenerator:
 
         # 2. Labor
         if request.labor_services:
-            add_p("Labor Service Fees", bold=True, size=Pt(12), color=0x612d4b, space_before=Pt(15))
+            add_p("Labor Service Fees", bold=True, size=Pt(12), color=self.primary_color, space_before=Pt(15))
             
             # De-duplicate labor services based on content (preserve order)
             seen_labor = set()
@@ -225,7 +271,7 @@ class EstimateDocxGenerator:
 
         # 3. Extras
         if request.extras_events:
-            add_p("Extras Services", bold=True, size=Pt(12), color=0x612d4b, space_before=Pt(15))
+            add_p("Extras Services", bold=True, size=Pt(12), color=self.primary_color, space_before=Pt(15))
             
             # De-duplicate extras events (preserve order)
             seen_extras = set()
@@ -265,7 +311,7 @@ class EstimateDocxGenerator:
             p.add_run(f"{label}\t{val}")
 
         # Total Line
-        total_p = add_p(f"Total Estimate\t{fin.total_estimate}", bold=True, size=Pt(13), color=0x612d4b, space_before=Pt(8))
+        total_p = add_p(f"Total Estimate\t{fin.total_estimate}", bold=True, size=Pt(13), color=self.primary_color, space_before=Pt(8))
         p_pr = total_p._element.get_or_add_pPr()
         p_bdr = OxmlElement('w:pBdr')
         top = OxmlElement('w:top')
