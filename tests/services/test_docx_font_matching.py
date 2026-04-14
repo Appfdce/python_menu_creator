@@ -89,3 +89,16 @@ def test_placeholder_font_is_open_sans(sample_request):
                     assert run.font.name == "Open Sans"
     
     assert found, "Placeholder value not found"
+
+def test_font_size_is_reasonable(sample_request):
+    generator = EstimateDocxGenerator()
+    docx_stream = generator.generate_docx(sample_request)
+    doc = Document(docx_stream)
+    
+    for p in doc.paragraphs:
+        for run in p.runs:
+            if run.font.size:
+                # Pt(100) is about 1,270,000 EMUs. 
+                # If the bug was active, Pt(11) would be ~1,700,000,000 EMUs.
+                # So anything below 1,000,000,000 is safer (but usually should be < 5,000,000)
+                assert run.font.size < 5000000, f"Font size too large: {run.font.size} EMUs"

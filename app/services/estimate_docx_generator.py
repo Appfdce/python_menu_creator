@@ -23,15 +23,19 @@ class EstimateDocxGenerator:
 
     def _set_run_font(self, run, size_pt=None, bold=None, italic=None, color_rgb=None, underline=None):
         """Helper to consistently set font properties in a run."""
+        rPr = run._element.get_or_add_rPr()
+        
+        # Set font name in both high-level and XML level
         run.font.name = self.font_name
-        # Force the font in the XML to ensure Word recognizes it
-        r = run._element.rPr.get_or_add_rFonts()
-        r.set(qn('w:ascii'), self.font_name)
-        r.set(qn('w:hAnsi'), self.font_name)
-        r.set(qn('w:cs'), self.font_name)
+        rFonts = rPr.get_or_add_rFonts()
+        rFonts.set(qn('w:ascii'), self.font_name)
+        rFonts.set(qn('w:hAnsi'), self.font_name)
+        rFonts.set(qn('w:cs'), self.font_name)
 
-        if size_pt:
-            run.font.size = Pt(size_pt)
+        if size_pt is not None:
+            # size_pt is already in Pt/EMU if passed from Pt()
+            # Directly assign to avoid double conversion bug
+            run.font.size = size_pt
         if bold is not None:
             run.bold = bold
         if italic is not None:
@@ -133,29 +137,25 @@ class EstimateDocxGenerator:
             if not p.runs and text:
                 run = p.add_run(text)
 
-            self._set_run_font(run, size_pt=size.to_pt() if hasattr(size, 'to_pt') else size, 
-                             bold=bold, italic=italic, color_rgb=color, underline=underline)
+            self._set_run_font(run, size_pt=size, bold=bold, italic=italic, color_rgb=color, underline=underline)
             
-            # If the size passed was already Pt, just use it.
-            # Convert Pt to float if needed.
-            if isinstance(size, Pt):
-                s = size / 12700 # Pt is in EMUs? No, Pt in shared is a special type.
-                # Actually Pt(11) in docx.shared is just an int.
-                pass
-
             return p
 
         def add_hr():
             p = add_p(space_after=Pt(2), space_before=Pt(12))
             p_pr = p._element.get_or_add_pPr()
-            p_bdr = OxmlElement('w:pBdr')
+            # Check if pBdr already exists to prevent duplication
+            p_bdr = p_pr.find(qn('w:pBdr'))
+            if p_bdr is None:
+                p_bdr = OxmlElement('w:pBdr')
+                p_pr.insert(0, p_bdr)
+            
             bottom = OxmlElement('w:bottom')
             bottom.set(qn('w:val'), 'single')
             bottom.set(qn('w:sz'), '6')
             bottom.set(qn('w:space'), '1')
             bottom.set(qn('w:color'), '000000')
             p_bdr.append(bottom)
-            p_pr.append(p_bdr)
 
         # --- MENU SECTION ---
         add_p("MENUS", bold=True, size=Pt(14), color=self.primary_color)
@@ -313,13 +313,16 @@ class EstimateDocxGenerator:
         # Total Line
         total_p = add_p(f"Total Estimate\t{fin.total_estimate}", bold=True, size=Pt(13), color=self.primary_color, space_before=Pt(8))
         p_pr = total_p._element.get_or_add_pPr()
-        p_bdr = OxmlElement('w:pBdr')
+        p_bdr = p_pr.find(qn('w:pBdr'))
+        if p_bdr is None:
+            p_bdr = OxmlElement('w:pBdr')
+            p_pr.insert(0, p_bdr)
+        
         top = OxmlElement('w:top')
         top.set(qn('w:val'), 'single')
         top.set(qn('w:sz'), '12')
         top.set(qn('w:color'), '612D4B')
         p_bdr.append(top)
-        p_pr.append(p_bdr)
 
         if marker_para:
             p_element = marker_para._element
