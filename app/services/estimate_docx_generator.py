@@ -213,11 +213,6 @@ class EstimateDocxGenerator:
                     r_name = item_p.add_run(item.name)
                     r_name.bold = True
                     r_name.underline = True
-                    
-                    if item.diet_options:
-                        r_diet = item_p.add_run(f" ({item.diet_options})")
-                        r_diet.font.color.rgb = RGBColor(0x61, 0x2d, 0x4b)
-                        r_diet.font.size = Pt(10)
 
                     if item.description:
                         desc_p = add_p(item.description, size=Pt(9), italic=True, color=self.desc_color, space_after=Pt(4))
