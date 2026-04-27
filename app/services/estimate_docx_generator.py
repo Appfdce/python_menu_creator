@@ -145,7 +145,8 @@ class EstimateDocxGenerator:
             return p
 
         def add_hr():
-            p = add_p(space_after=Pt(3), space_before=Pt(0))
+            p = add_p(space_after=Pt(3), space_before=Pt(0), size=Pt(1))
+            p.paragraph_format.line_spacing = Pt(1)
             p_pr = p._element.get_or_add_pPr()
             # Check if pBdr already exists to prevent duplication
             p_bdr = p_pr.find(qn('w:pBdr'))
@@ -223,12 +224,12 @@ class EstimateDocxGenerator:
         # --- FINANCIAL SECTION ---
         # Force a page break before financials if needed, or just a big spacer
         add_p(space_before=Pt(30))
-        add_p("PROPOSAL OF SERVICES", bold=True, size=Pt(10), color=self.primary_color)
+        add_p("PROPOSAL OF SERVICES", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
         add_p(request.event.end_date_formatted) # HTML uses End Event here
         add_p()
 
         # 1. Food Service
-        add_p("Food Service", bold=True, size=Pt(10), color=self.primary_color)
+        add_p("Food Service", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
         add_p(f"Based on {request.event.guests} Guests", size=Pt(10), italic=True)
         
         for meal in request.meals:
@@ -249,7 +250,7 @@ class EstimateDocxGenerator:
 
         # 2. Labor
         if request.labor_services:
-            add_p("Labor Service Fees", bold=True, size=Pt(10), color=self.primary_color, space_before=Pt(15))
+            add_p("Labor Service Fees", bold=True, size=Pt(10), color=self.primary_color, space_before=Pt(15), space_after=Pt(0))
             
             # De-duplicate labor services based on content (preserve order)
             seen_labor = set()
@@ -272,7 +273,7 @@ class EstimateDocxGenerator:
 
         # 3. Extras
         if request.extras_events:
-            add_p("Extras Services", bold=True, size=Pt(10), color=self.primary_color, space_before=Pt(15))
+            add_p("Extras Services", bold=True, size=Pt(10), color=self.primary_color, space_before=Pt(15), space_after=Pt(0))
             
             # De-duplicate extras events (preserve order)
             seen_extras = set()
