@@ -21,7 +21,7 @@ class EstimateDocxGenerator:
         self.text_color = 0x333333     # Main text color
         self.desc_color = 0x555555     # Description color
 
-    def _set_run_font(self, run, size_pt=None, bold=None, italic=None, color_rgb=None, underline=None):
+    def _set_run_font(self, run, size_pt=Pt(10), bold=None, italic=None, color_rgb=None, underline=None):
         """Helper to consistently set font properties in a run."""
         rPr = run._element.get_or_add_rPr()
         
@@ -88,6 +88,9 @@ class EstimateDocxGenerator:
                                 rFonts = rPr.get_or_add_rFonts()
                                 rFonts.set(qn('w:ascii'), self.font_name)
                                 rFonts.set(qn('w:hAnsi'), self.font_name)
+                                # Set font size to 10pt (value is in half-points, so 20)
+                                sz = rPr.get_or_add_sz()
+                                sz.set(qn('w:val'), '20')
 
         for section in doc.sections:
             if section.header:
@@ -116,7 +119,7 @@ class EstimateDocxGenerator:
         if not marker_para:
             logger.warning("Marker [DYNAMIC_CONTENT_START] not found. Appending to end.")
 
-        def add_p(text="", alignment=None, space_after=Pt(6), space_before=Pt(0), bold=False, italic=False, size=Pt(11), color=0x333333, underline=False):
+        def add_p(text="", alignment=None, space_after=Pt(6), space_before=Pt(0), bold=False, italic=False, size=Pt(10), color=0x333333, underline=False):
             if marker_para:
                 p = marker_para.insert_paragraph_before(text)
             else:
@@ -158,12 +161,12 @@ class EstimateDocxGenerator:
             p_bdr.append(bottom)
 
         # --- MENU SECTION ---
-        add_p("MENUS", bold=True, size=Pt(14), color=self.primary_color)
-        add_p(request.event.date_formatted, size=Pt(11))
+        add_p("MENUS", bold=True, size=Pt(10), color=self.primary_color)
+        add_p(request.event.date_formatted)
 
         if request.event.dietary_restrictions:
             add_p()
-            add_p("Dietary Restrictions", bold=True, size=Pt(12), color=self.primary_color)
+            add_p("Dietary Restrictions", bold=True, size=Pt(10), color=self.primary_color)
             add_p(request.event.dietary_restrictions)
 
         for meal in request.meals:
@@ -175,7 +178,7 @@ class EstimateDocxGenerator:
             if meal.time_range:
                 cat_text += f": {meal.time_range}"
             
-            add_p(cat_text, bold=True, size=Pt(13.5), color=self.primary_color, space_before=Pt(8))
+            add_p(cat_text, bold=True, size=Pt(10), color=self.primary_color, space_before=Pt(8))
             
             if meal.provide_by_client:
                 p = add_p("◽ Provided by client", space_before=Pt(4))
@@ -208,25 +211,24 @@ class EstimateDocxGenerator:
                     item_p.paragraph_format.first_line_indent = Cm(-0.4)
                     
                     r_bullet = item_p.add_run("◽ ")
-                    r_bullet.bold = True
+                    self._set_run_font(r_bullet, bold=True)
                     
                     r_name = item_p.add_run(item.name)
-                    r_name.bold = True
-                    r_name.underline = True
+                    self._set_run_font(r_name, bold=False, underline=False)
 
                     if item.description:
-                        desc_p = add_p(item.description, size=Pt(9), italic=True, color=self.desc_color, space_after=Pt(4))
+                        desc_p = add_p(item.description, size=Pt(10), italic=True, color=self.desc_color, space_after=Pt(4))
                         desc_p.paragraph_format.left_indent = Cm(1.2)
 
         # --- FINANCIAL SECTION ---
         # Force a page break before financials if needed, or just a big spacer
         add_p(space_before=Pt(30))
-        add_p("PROPOSAL OF SERVICES", bold=True, size=Pt(13.5), color=self.primary_color)
+        add_p("PROPOSAL OF SERVICES", bold=True, size=Pt(10), color=self.primary_color)
         add_p(request.event.end_date_formatted) # HTML uses End Event here
         add_p()
 
         # 1. Food Service
-        add_p("Food Service", bold=True, size=Pt(12), color=self.primary_color)
+        add_p("Food Service", bold=True, size=Pt(10), color=self.primary_color)
         add_p(f"Based on {request.event.guests} Guests", size=Pt(10), italic=True)
         
         for meal in request.meals:
@@ -235,16 +237,19 @@ class EstimateDocxGenerator:
             
             p = add_p(space_after=Pt(2))
             r_label = p.add_run(meal.category_precio_guest)
-            r_spacer = p.add_run("\t") # Tab to align right if possible, or just space
+            self._set_run_font(r_label)
+            r_spacer = p.add_run("\t") 
+            self._set_run_font(r_spacer)
             if not meal.provide_by_client:
                 r_val = p.add_run(meal.total_category_precio)
-                r_val.bold = True
+                self._set_run_font(r_val, bold=True)
             else:
-                p.add_run("Provided by client").italic = True
+                r_client = p.add_run("Provided by client")
+                self._set_run_font(r_client, italic=True)
 
         # 2. Labor
         if request.labor_services:
-            add_p("Labor Service Fees", bold=True, size=Pt(12), color=self.primary_color, space_before=Pt(15))
+            add_p("Labor Service Fees", bold=True, size=Pt(10), color=self.primary_color, space_before=Pt(15))
             
             # De-duplicate labor services based on content (preserve order)
             seen_labor = set()
@@ -262,11 +267,12 @@ class EstimateDocxGenerator:
                     add_p(f"Staff suggested based on {labor.hours} hours of labor", size=Pt(10), italic=True)
                 
                 p = add_p(space_after=Pt(4))
-                p.add_run(f"{labor.name}\t{labor.total}").bold = True
+                p_labor = p.add_run(f"{labor.name}\t{labor.total}")
+                self._set_run_font(p_labor, bold=True)
 
         # 3. Extras
         if request.extras_events:
-            add_p("Extras Services", bold=True, size=Pt(12), color=self.primary_color, space_before=Pt(15))
+            add_p("Extras Services", bold=True, size=Pt(10), color=self.primary_color, space_before=Pt(15))
             
             # De-duplicate extras events (preserve order)
             seen_extras = set()
@@ -298,7 +304,8 @@ class EstimateDocxGenerator:
                     txt = f"{display_name}\tProvide by the client"
                 else:
                     txt = f"{display_name}\t{extra.total}"
-                p.add_run(txt).bold = True
+                p_extra = p.add_run(txt)
+                self._set_run_font(p_extra, bold=True)
 
         # 4. Final Summary
         add_p(space_before=Pt(20))
@@ -345,11 +352,14 @@ class EstimateDocxGenerator:
             tab_stops = p.paragraph_format.tab_stops
             tab_stops.add_tab_stop(Cm(16.5), alignment=WD_ALIGN_PARAGRAPH.RIGHT)
             
-            run = p.add_run(label)
-            p.add_run("\t")
+            r_label = p.add_run(label)
+            self._set_run_font(r_label)
+            r_tab = p.add_run("\t")
+            self._set_run_font(r_tab)
             
             if not is_zero(val):
-                p.add_run(str(val))
+                r_val = p.add_run(str(val))
+                self._set_run_font(r_val)
 
         # Total Line
         total_p = add_p(space_after=Pt(2), space_before=Pt(8))
@@ -357,7 +367,7 @@ class EstimateDocxGenerator:
         tab_stops.add_tab_stop(Cm(16.5), alignment=WD_ALIGN_PARAGRAPH.RIGHT)
         
         r_total = total_p.add_run(f"Total Estimate\t{fin.total_estimate}")
-        self._set_run_font(r_total, bold=True, size_pt=Pt(13), color_rgb=self.primary_color)
+        self._set_run_font(r_total, bold=True, size_pt=Pt(10), color_rgb=self.primary_color)
         
         p_pr = total_p._element.get_or_add_pPr()
         p_bdr = p_pr.find(qn('w:pBdr'))
