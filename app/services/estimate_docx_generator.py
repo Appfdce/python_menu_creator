@@ -1,11 +1,10 @@
-from numpy import size
 import os
 import logging
 from datetime import datetime
 from io import BytesIO
 from docx import Document
 from docx.shared import Pt, RGBColor, Cm
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from app.schemas.estimate_total import EstimateTotalRequest
@@ -227,7 +226,7 @@ class EstimateDocxGenerator:
         add_p(space_before=Pt(30))
         add_p("PROPOSAL OF SERVICES", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
         add_p(request.event.end_date_formatted, space_after=Pt(0)) # HTML uses End Event here
-        add_p(size=Pt(8))
+        #add_p(size=Pt(8))
 
         # 1. Food Service
         add_p("Food Service", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
@@ -239,6 +238,7 @@ class EstimateDocxGenerator:
                 add_hr()
             
             p = add_p(space_after=Pt(2))
+            p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
             r_label = p.add_run(meal.category_precio_guest)
             self._set_run_font(r_label)
             r_spacer = p.add_run("\t") 
@@ -270,6 +270,7 @@ class EstimateDocxGenerator:
                     add_p(f"Staff suggested based on {labor.hours} hours of labor", size=Pt(10), italic=True)
                 
                 p = add_p(space_after=Pt(4))
+                p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
                 p_labor = p.add_run(f"{labor.name}\t{labor.total}")
                 self._set_run_font(p_labor, bold=True)
 
@@ -297,6 +298,7 @@ class EstimateDocxGenerator:
                     add_p("Sales", bold=True, space_before=Pt(6))
 
                 p = add_p(space_after=Pt(2))
+                p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
                 # Determine name based on flags
                 display_name = extra.name
                 if not extra.provide_by_client:
@@ -351,9 +353,7 @@ class EstimateDocxGenerator:
             p = add_p(space_after=Pt(2))
             
             # Setup tab stops for right alignment
-            # Word default margin is usually around 16-17cm for Letter size
-            tab_stops = p.paragraph_format.tab_stops
-            tab_stops.add_tab_stop(Cm(16.5), alignment=WD_ALIGN_PARAGRAPH.RIGHT)
+            p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
             
             r_label = p.add_run(label)
             self._set_run_font(r_label)
@@ -366,8 +366,7 @@ class EstimateDocxGenerator:
 
         # Total Line
         total_p = add_p(space_after=Pt(2), space_before=Pt(8))
-        tab_stops = total_p.paragraph_format.tab_stops
-        tab_stops.add_tab_stop(Cm(16.5), alignment=WD_ALIGN_PARAGRAPH.RIGHT)
+        total_p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
         
         r_total = total_p.add_run(f"Total Estimate\t{fin.total_estimate}")
         self._set_run_font(r_total, bold=True, size_pt=Pt(10), color_rgb=self.primary_color)
