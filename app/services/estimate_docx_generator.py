@@ -161,13 +161,13 @@ class EstimateDocxGenerator:
             p_bdr.append(bottom)
 
         # --- MENU SECTION ---
-        add_p("MENUS", bold=True, size=Pt(10), color=self.primary_color)
-        add_p(request.event.date_formatted)
+        add_p("MENUS", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
+        add_p(request.event.date_formatted, space_after=Pt(0))
 
         if request.event.dietary_restrictions:
             add_p()
-            add_p("Dietary Restrictions", bold=True, size=Pt(10), color=self.primary_color)
-            add_p(request.event.dietary_restrictions)
+            add_p("Dietary Restrictions", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
+            add_p(request.event.dietary_restrictions, space_after=Pt(0))
 
         for meal in request.meals:
             add_hr()
