@@ -229,12 +229,12 @@ class EstimateDocxGenerator:
         #add_p(size=Pt(8))
 
         # 1. Food Service
-        add_p("Food Service", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
+        add_p("Food Service", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(10))
         add_p(f"Based on {request.event.guests} Guests", size=Pt(10), italic=True)
         
         for meal in request.meals:
             if meal.show_date_header:
-                add_p(meal.date_header, bold=True, space_before=Pt(6))
+                add_p(meal.date_header, bold=True, space_before=Pt(6), space_after=Pt(0))
                 add_hr()
             
             p = add_p(space_after=Pt(2))
@@ -265,7 +265,8 @@ class EstimateDocxGenerator:
 
             for labor in unique_labor:
                 if labor.show_date_header:
-                    add_p(labor.date_header, bold=True, space_before=Pt(6))
+                    add_p(labor.date_header, bold=True, space_before=Pt(6), space_after=Pt(0))
+                    add_hr()
                 if labor.show_hours_header:
                     add_p(f"Staff suggested based on {labor.hours} hours of labor", size=Pt(10), italic=True)
                 
@@ -289,7 +290,8 @@ class EstimateDocxGenerator:
 
             for extra in unique_extras:
                 if extra.show_date_header:
-                    add_p(extra.date_header, bold=True)
+                    add_p(extra.date_header, bold=True, space_after=Pt(0))
+                    add_hr()
                 
                 if extra.is_rental:
                     add_p("Rentals", bold=True, space_before=Pt(6))
