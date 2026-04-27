@@ -223,7 +223,7 @@ class EstimateDocxGenerator:
 
         # --- FINANCIAL SECTION ---
         # Force a page break before financials if needed, or just a big spacer
-        add_p(space_before=Pt(30))
+        add_p(space_before=Pt(10))
         add_p("PROPOSAL OF SERVICES", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
         add_p(request.event.end_date_formatted, space_after=Pt(0)) # HTML uses End Event here
         #add_p(size=Pt(8))
@@ -254,13 +254,21 @@ class EstimateDocxGenerator:
         if request.labor_services:
             add_p("Labor Service Fees", bold=True, size=Pt(10), color=self.primary_color, space_before=Pt(15), space_after=Pt(0))
             
-            # Group labor by date and hours to concatenate names into one "running" paragraph
-            labor_groups = []
+            # 1. De-duplicate labor services first to avoid repetitions
+            seen_labor = set()
+            unique_labor = []
             for labor in request.labor_services:
+                key = (labor.date_header, labor.hours, labor.name, labor.total)
+                if key not in seen_labor:
+                    seen_labor.add(key)
+                    unique_labor.append(labor)
+
+            # 2. Group labor by date and hours
+            labor_groups = []
+            for labor in unique_labor:
                 found = False
                 for g in labor_groups:
                     if g['date'] == labor.date_header and g['hours'] == labor.hours:
-                        # Avoid duplicate names in the same group if necessary, but here we append
                         g['items'].append(labor)
                         found = True
                         break
@@ -272,40 +280,53 @@ class EstimateDocxGenerator:
                         'items': [labor]
                     })
 
+            def parse_price(s):
+                if not s: return 0.0
+                # Clean currency symbols and spaces
+                clean = str(s).replace("$", "").replace(" ", "").strip()
+                # Handle formats like 1.234,56 or 585,00
+                if "," in clean and "." in clean:
+                    if clean.rfind(",") > clean.rfind("."): # 1.234,56
+                        clean = clean.replace(".", "").replace(",", ".")
+                    else: # 1,234.56
+                        clean = clean.replace(",", "")
+                elif "," in clean:
+                    parts = clean.split(",")
+                    if len(parts[-1]) == 2: # 585,00
+                        clean = clean.replace(",", ".")
+                    else: # 1,200
+                        clean = clean.replace(",", "")
+                try: return float(clean)
+                except: return 0.0
+
             for group in labor_groups:
                 if group['show_date']:
                     add_p(group['date'], bold=True, space_before=Pt(6), space_after=Pt(0))
                     add_hr()
                 
-                p = add_p(space_after=Pt(4))
-                p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
+                # Paragraph for the description (continuous text)
+                p_desc = add_p(space_after=Pt(0))
                 
                 # 1. Header (Italic with Bold Hours)
-                r_header_prefix = p.add_run("Staff suggested based on ")
+                r_header_prefix = p_desc.add_run("Staff suggested based on ")
                 self._set_run_font(r_header_prefix, italic=True)
                 
-                r_hours = p.add_run(f"{group['hours']}")
+                r_hours = p_desc.add_run(f"{group['hours']}")
                 self._set_run_font(r_hours, italic=True, bold=True)
                 
-                r_header_suffix = p.add_run(" hours of labor. ")
+                r_header_suffix = p_desc.add_run(" hours of labor. ")
                 self._set_run_font(r_header_suffix, italic=True)
                 
                 # 2. Names concatenated (Normal weight)
                 names_str = ", ".join([item.name for item in group['items']])
-                r_names = p.add_run(names_str)
+                r_names = p_desc.add_run(names_str)
                 self._set_run_font(r_names, bold=False)
                 
-                # 3. Summed Total (Bold, Aligned Right)
-                def parse_price(s):
-                    if not s: return 0.0
-                    # Basic numeric extraction from string like "$ 1,200.00" or "500.00 $"
-                    clean = str(s).replace("$", "").replace(",", "").replace(" ", "").strip()
-                    try: return float(clean)
-                    except: return 0.0
-
+                # 3. Total on a new line (aligned right)
                 total_val = sum(parse_price(item.total) for item in group['items'])
-                r_total = p.add_run(f"\t$ {total_val:,.2f}")
-                self._set_run_font(r_total, bold=True)
+                p_total = add_p(f"$ {total_val:,.2f}", alignment=WD_ALIGN_PARAGRAPH.RIGHT, bold=True, space_after=Pt(4))
+                # Explicitly set color for the total
+                self._set_run_font(p_total.runs[0], bold=True, color_rgb=0x000000)
 
         # 3. Extras
         if request.extras_events:
