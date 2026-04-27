@@ -90,7 +90,7 @@ class EstimateDocxGenerator:
                                 rFonts.set(qn('w:hAnsi'), self.font_name)
                                 # Set font size to 10pt (value is in half-points, so 20)
                                 sz = rPr.get_or_add_sz()
-                                sz.set(qn('w:val'), '20')
+                                sz.set(qn('w:val'), '12')
 
         for section in doc.sections:
             if section.header:
