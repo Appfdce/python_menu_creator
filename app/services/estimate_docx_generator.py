@@ -170,9 +170,9 @@ class EstimateDocxGenerator:
             add_p(request.event.dietary_restrictions, space_after=Pt(0))
 
         for meal in request.meals:
-            add_hr()
             if meal.show_date_header:
                 add_p(meal.date_header, bold=True, space_before=Pt(6))
+                add_hr()
             
             cat_text = meal.category_name.upper()
             if meal.time_range:
@@ -186,7 +186,7 @@ class EstimateDocxGenerator:
                 continue
 
             if meal.description:
-                add_p(meal.description, italic=True)
+                add_p(meal.description, italic=True, space_before=Pt(0))
 
             # --- MEAL LEVEL ---
             for i in range(1, 13):
