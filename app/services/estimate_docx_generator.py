@@ -254,26 +254,58 @@ class EstimateDocxGenerator:
         if request.labor_services:
             add_p("Labor Service Fees", bold=True, size=Pt(10), color=self.primary_color, space_before=Pt(15), space_after=Pt(0))
             
-            # De-duplicate labor services based on content (preserve order)
-            seen_labor = set()
-            unique_labor = []
+            # Group labor by date and hours to concatenate names into one "running" paragraph
+            labor_groups = []
             for labor in request.labor_services:
-                key = (labor.date_header, labor.hours, labor.name, labor.total)
-                if key not in seen_labor:
-                    seen_labor.add(key)
-                    unique_labor.append(labor)
+                found = False
+                for g in labor_groups:
+                    if g['date'] == labor.date_header and g['hours'] == labor.hours:
+                        # Avoid duplicate names in the same group if necessary, but here we append
+                        g['items'].append(labor)
+                        found = True
+                        break
+                if not found:
+                    labor_groups.append({
+                        'date': labor.date_header,
+                        'hours': labor.hours,
+                        'show_date': labor.show_date_header,
+                        'items': [labor]
+                    })
 
-            for labor in unique_labor:
-                if labor.show_date_header:
-                    add_p(labor.date_header, bold=True, space_before=Pt(6), space_after=Pt(0))
+            for group in labor_groups:
+                if group['show_date']:
+                    add_p(group['date'], bold=True, space_before=Pt(6), space_after=Pt(0))
                     add_hr()
-                if labor.show_hours_header:
-                    add_p(f"Staff suggested based on {labor.hours} hours of labor", size=Pt(10), italic=True)
                 
                 p = add_p(space_after=Pt(4))
                 p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
-                p_labor = p.add_run(f"{labor.name}\t{labor.total}")
-                self._set_run_font(p_labor, bold=True)
+                
+                # 1. Header (Italic with Bold Hours)
+                r_header_prefix = p.add_run("Staff suggested based on ")
+                self._set_run_font(r_header_prefix, italic=True)
+                
+                r_hours = p.add_run(f"{group['hours']}")
+                self._set_run_font(r_hours, italic=True, bold=True)
+                
+                r_header_suffix = p.add_run(" hours of labor. ")
+                self._set_run_font(r_header_suffix, italic=True)
+                
+                # 2. Names concatenated (Normal weight)
+                names_str = ", ".join([item.name for item in group['items']])
+                r_names = p.add_run(names_str)
+                self._set_run_font(r_names, bold=False)
+                
+                # 3. Summed Total (Bold, Aligned Right)
+                def parse_price(s):
+                    if not s: return 0.0
+                    # Basic numeric extraction from string like "$ 1,200.00" or "500.00 $"
+                    clean = str(s).replace("$", "").replace(",", "").replace(" ", "").strip()
+                    try: return float(clean)
+                    except: return 0.0
+
+                total_val = sum(parse_price(item.total) for item in group['items'])
+                r_total = p.add_run(f"\t$ {total_val:,.2f}")
+                self._set_run_font(r_total, bold=True)
 
         # 3. Extras
         if request.extras_events:
@@ -315,7 +347,7 @@ class EstimateDocxGenerator:
                 self._set_run_font(p_extra, bold=True)
 
         # 4. Final Summary
-        add_p(space_before=Pt(20))
+        add_p("Cost of Balance", bold=True, size=Pt(10), color=self.primary_color, space_before=Pt(20))
         fin = request.financials
         
         def is_zero(val):
