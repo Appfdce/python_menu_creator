@@ -145,7 +145,7 @@ class EstimateDocxGenerator:
             return p
 
         def add_hr():
-            p = add_p(space_after=Pt(2), space_before=Pt(12))
+            p = add_p(space_after=Pt(3), space_before=Pt(0))
             p_pr = p._element.get_or_add_pPr()
             # Check if pBdr already exists to prevent duplication
             p_bdr = p_pr.find(qn('w:pBdr'))
