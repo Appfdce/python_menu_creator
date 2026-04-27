@@ -1,3 +1,4 @@
+from numpy import size
 import os
 import logging
 from datetime import datetime
@@ -225,8 +226,8 @@ class EstimateDocxGenerator:
         # Force a page break before financials if needed, or just a big spacer
         add_p(space_before=Pt(30))
         add_p("PROPOSAL OF SERVICES", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
-        add_p(request.event.end_date_formatted) # HTML uses End Event here
-        add_p()
+        add_p(request.event.end_date_formatted, space_after=Pt(0)) # HTML uses End Event here
+        add_p(size=Pt(8))
 
         # 1. Food Service
         add_p("Food Service", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
@@ -235,6 +236,7 @@ class EstimateDocxGenerator:
         for meal in request.meals:
             if meal.show_date_header:
                 add_p(meal.date_header, bold=True, space_before=Pt(6))
+                add_hr()
             
             p = add_p(space_after=Pt(2))
             r_label = p.add_run(meal.category_precio_guest)
