@@ -90,41 +90,45 @@ class EstimateDocxGenerator:
             for paragraph in paragraphs:
                 for key, value in replacements.items():
                     if key in paragraph.text:
+                        # 1. Try simple replacement in runs
+                        found_in_run = False
                         for run in paragraph.runs:
                             if key in run.text:
                                 run.text = run.text.replace(key, str(value or ""))
-                                self._set_run_font(run) # Ensure replaced text matches font
+                                found_in_run = True
+                        
+                        # 2. If tag is split across runs, heal it by merging runs
+                        if not found_in_run and len(paragraph.runs) > 1:
+                            full_text = "".join(r.text for r in paragraph.runs)
+                            if key in full_text:
+                                paragraph.runs[0].text = full_text.replace(key, str(value or ""))
+                                for i in range(1, len(paragraph.runs)):
+                                    paragraph.runs[i].text = ""
 
+        # Process main body paragraphs
         process_paragraphs(doc.paragraphs)
 
-        def process_xml_element(element):
-            for t_element in element.iter("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t"):
-                if t_element.text:
-                    for key, value in replacements.items():
-                        if key in t_element.text:
-                            t_element.text = t_element.text.replace(key, str(value or ""))
-                            # For XML elements, we might need a different approach if they are broken
-                            # but for now let's ensure the parent R has the font if possible.
-                            parent_r = t_element.getparent()
-                            if parent_r is not None:
-                                rPr = parent_r.get_or_add_rPr()
-                                rFonts = rPr.get_or_add_rFonts()
-                                rFonts.set(qn('w:ascii'), self.font_name)
-                                rFonts.set(qn('w:hAnsi'), self.font_name)
-                                # Set font size to 10pt (value is in half-points, so 20)
-                                sz = rPr.get_or_add_sz()
-                                sz.set(qn('w:val'), '12')
+        # Process all tables (including nested ones)
+        def process_tables(tables):
+            for table in tables:
+                for row in table.rows:
+                    for cell in row.cells:
+                        process_paragraphs(cell.paragraphs)
+                        if cell.tables:
+                            process_tables(cell.tables)
 
+        process_tables(doc.tables)
+
+        # Process Headers and Footers (where your left-side info is located)
         for section in doc.sections:
-            if section.header:
-                process_xml_element(section.header._element)
-            if section.first_page_header:
-                process_xml_element(section.first_page_header._element)
-
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    process_paragraphs(cell.paragraphs)
+            for header in [section.header, section.first_page_header, section.even_page_header]:
+                if header:
+                    process_paragraphs(header.paragraphs)
+                    process_tables(header.tables)
+            for footer in [section.footer, section.first_page_footer, section.even_page_footer]:
+                if footer:
+                    process_paragraphs(footer.paragraphs)
+                    process_tables(footer.tables)
 
     def generate_docx(self, request: EstimateTotalRequest) -> BytesIO:
         if not os.path.exists(self.template_path):
