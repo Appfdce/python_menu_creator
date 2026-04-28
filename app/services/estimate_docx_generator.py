@@ -294,7 +294,7 @@ class EstimateDocxGenerator:
                 add_p(meal.date_header, bold=True, space_before=Pt(6), space_after=Pt(0))
                 add_hr()
                 if meal.total_food_por_dia:
-                    add_p(f"Total Food Service: {self._format_currency(meal.total_food_por_dia)}", bold=True, space_after=Pt(4))
+                    add_p(f"{self._format_currency(meal.total_food_por_dia)}", bold=True, space_after=Pt(4))
             
             p = add_p(space_after=Pt(2))
             p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
