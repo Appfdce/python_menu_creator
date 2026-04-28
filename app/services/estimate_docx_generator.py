@@ -246,13 +246,13 @@ class EstimateDocxGenerator:
         # --- FINANCIAL SECTION ---
         # Force a page break before financials if needed, or just a big spacer
         add_p(space_before=Pt(10))
-        add_p("PROPOSAL OF SERVICES", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
+        add_p("PROPOSAL OF SERVICES", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0), space_before=Pt(10))
         add_p(request.event.end_date_formatted, space_after=Pt(0)) # HTML uses End Event here
         #add_p(size=Pt(8))
 
         # 1. Food Service
-        add_p("Food Service", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(10))
-        add_p(f"Based on {request.event.guests} Guests", size=Pt(10), italic=True)
+        add_p("Food Service", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(10), space_before=Pt(10))
+        add_p(f"Based on {request.event.guests} Guests", size=Pt(10), italic=True, space_before=Pt(0))
         
         for meal in request.meals:
             if meal.show_date_header:
@@ -390,7 +390,7 @@ class EstimateDocxGenerator:
                 self._set_run_font(p_extra, bold=True)
 
         # 4. Final Summary
-        add_p("Cost of Balance", bold=True, size=Pt(10), color=self.primary_color, space_before=Pt(20))
+        add_p("Cost of Balance", bold=True, size=Pt(10), color=self.primary_color, space_before=Pt(10))
         fin = request.financials
         
         def is_zero(val):
