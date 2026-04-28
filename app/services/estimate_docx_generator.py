@@ -125,7 +125,7 @@ class EstimateDocxGenerator:
                 if header:
                     process_paragraphs(header.paragraphs)
                     process_tables(header.tables)
-                    for footer in [section.footer, section.first_page_footer, section.even_page_footer]:
+            for footer in [section.footer, section.first_page_footer, section.even_page_footer]:
                 if footer:
                     process_paragraphs(footer.paragraphs)
                     process_tables(footer.tables)
