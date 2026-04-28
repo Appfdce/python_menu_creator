@@ -45,6 +45,27 @@ class EstimateDocxGenerator:
         if color_rgb is not None:
             run.font.color.rgb = RGBColor((color_rgb >> 16) & 0xff, (color_rgb >> 8) & 0xff, color_rgb & 0xff)
 
+    def _format_currency(self, val):
+        if not val:
+            return ""
+        s = str(val).strip()
+        
+        # Only format if it contains digits
+        if not any(c.isdigit() for c in s):
+            return s
+
+        is_negative = False
+        if s.startswith("-"):
+            is_negative = True
+            s = s[1:].strip()
+            
+        # Remove existing $ and extra spaces
+        s = s.replace("$", "").strip()
+        
+        if is_negative:
+            return f"-$ {s}"
+        return f"$ {s}"
+
     def _replace_placeholders(self, doc, request: EstimateTotalRequest):
         """Replaces {{TAG}} placeholders in the document paragraphs and tables."""
         replacements = {
@@ -61,6 +82,8 @@ class EstimateDocxGenerator:
             "{{EVENT_END}}": request.event.end_date_formatted,
             "{{EVENT_GUESTS}}": str(request.event.guests),
             "{{SERVICE_CHARGE_RATE}}": request.financials.service_charge_rate,
+            "{{TAX_NAME}}": request.financials.tax_name,
+            "{{TAX_RATE}}": request.financials.tax_rate,
         }
 
         def process_paragraphs(paragraphs):
@@ -166,7 +189,6 @@ class EstimateDocxGenerator:
         add_p(request.event.date_formatted, space_after=Pt(0))
 
         if request.event.dietary_restrictions:
-            add_p()
             add_p("Dietary Restrictions", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
             add_p(request.event.dietary_restrictions, space_after=Pt(0))
 
@@ -239,12 +261,12 @@ class EstimateDocxGenerator:
             
             p = add_p(space_after=Pt(2))
             p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
-            r_label = p.add_run(meal.category_precio_guest)
+            r_label = p.add_run(self._format_currency(meal.category_precio_guest))
             self._set_run_font(r_label)
             r_spacer = p.add_run("\t") 
             self._set_run_font(r_spacer)
             if not meal.provide_by_client:
-                r_val = p.add_run(meal.total_category_precio)
+                r_val = p.add_run(self._format_currency(meal.total_category_precio))
                 self._set_run_font(r_val, bold=True)
             else:
                 r_client = p.add_run("Provided by client")
@@ -363,7 +385,7 @@ class EstimateDocxGenerator:
                 if extra.provide_by_client:
                     txt = f"{display_name}\tProvide by the client"
                 else:
-                    txt = f"{display_name}\t{extra.total}"
+                    txt = f"{display_name}\t{self._format_currency(extra.total)}"
                 p_extra = p.add_run(txt)
                 self._set_run_font(p_extra, bold=True)
 
@@ -416,14 +438,14 @@ class EstimateDocxGenerator:
             self._set_run_font(r_tab)
             
             if not is_zero(val):
-                r_val = p.add_run(str(val))
+                r_val = p.add_run(self._format_currency(val))
                 self._set_run_font(r_val)
 
         # Total Line
         total_p = add_p(space_after=Pt(2), space_before=Pt(8))
         total_p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
         
-        r_total = total_p.add_run(f"Total Estimate\t{fin.total_estimate}")
+        r_total = total_p.add_run(f"Final\t{self._format_currency(fin.total_estimate)}")
         self._set_run_font(r_total, bold=True, size_pt=Pt(10), color_rgb=self.primary_color)
         
         p_pr = total_p._element.get_or_add_pPr()
