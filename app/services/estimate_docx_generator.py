@@ -125,10 +125,19 @@ class EstimateDocxGenerator:
                 if header:
                     process_paragraphs(header.paragraphs)
                     process_tables(header.tables)
-            for footer in [section.footer, section.first_page_footer, section.even_page_footer]:
+                    for footer in [section.footer, section.first_page_footer, section.even_page_footer]:
                 if footer:
                     process_paragraphs(footer.paragraphs)
                     process_tables(footer.tables)
+            
+            # 3. Fallback: process raw XML for elements not caught in paragraphs (like floating Text Boxes)
+            for part in [section.header, section.first_page_header, section.even_page_header, section.footer, section.first_page_footer, section.even_page_footer]:
+                if part:
+                    for t in part._element.iter("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t"):
+                        if t.text:
+                            for key, value in replacements.items():
+                                if key in t.text:
+                                    t.text = t.text.replace(key, str(value or ""))
 
     def generate_docx(self, request: EstimateTotalRequest) -> BytesIO:
         if not os.path.exists(self.template_path):
@@ -255,7 +264,7 @@ class EstimateDocxGenerator:
         #add_p(size=Pt(8))
 
         # 1. Food Service
-        add_p("Food Service", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(10), space_before=Pt(10))
+        add_p("Food Service", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0), space_before=Pt(10))
         add_p(f"Based on {request.event.guests} Guests", size=Pt(10), italic=True, space_before=Pt(0))
         
         for meal in request.meals:
