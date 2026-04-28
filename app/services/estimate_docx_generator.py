@@ -66,6 +66,28 @@ class EstimateDocxGenerator:
             return f"-$ {s}"
         return f"$ {s}"
 
+    def _parse_price(self, val):
+        if not val:
+            return 0.0
+        # Clean currency symbols and spaces
+        clean = str(val).replace("$", "").replace(" ", "").strip()
+        # Handle formats like 1.234,56 or 585,00
+        if "," in clean and "." in clean:
+            if clean.rfind(",") > clean.rfind("."): # 1.234,56
+                clean = clean.replace(".", "").replace(",", ".")
+            else: # 1,234.56
+                clean = clean.replace(",", "")
+        elif "," in clean:
+            parts = clean.split(",")
+            if len(parts[-1]) == 2: # 585,00
+                clean = clean.replace(",", ".")
+            else: # 1,200
+                clean = clean.replace(",", "")
+        try:
+            return float(clean)
+        except (ValueError, TypeError):
+            return 0.0
+
     def _replace_placeholders(self, doc, request: EstimateTotalRequest):
         """Replaces {{TAG}} placeholders in the document paragraphs and tables."""
         replacements = {
@@ -271,10 +293,12 @@ class EstimateDocxGenerator:
             if meal.show_date_header:
                 add_p(meal.date_header, bold=True, space_before=Pt(6), space_after=Pt(0))
                 add_hr()
+                if meal.total_food_por_dia:
+                    add_p(f"Total Food Service: {self._format_currency(meal.total_food_por_dia)}", bold=True, space_after=Pt(4))
             
             p = add_p(space_after=Pt(2))
             p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
-            r_label = p.add_run(self._format_currency(meal.category_precio_guest))
+            r_label = p.add_run(meal.category_precio_guest)
             self._set_run_font(r_label)
             r_spacer = p.add_run("\t") 
             self._set_run_font(r_spacer)
@@ -315,25 +339,6 @@ class EstimateDocxGenerator:
                         'items': [labor]
                     })
 
-            def parse_price(s):
-                if not s: return 0.0
-                # Clean currency symbols and spaces
-                clean = str(s).replace("$", "").replace(" ", "").strip()
-                # Handle formats like 1.234,56 or 585,00
-                if "," in clean and "." in clean:
-                    if clean.rfind(",") > clean.rfind("."): # 1.234,56
-                        clean = clean.replace(".", "").replace(",", ".")
-                    else: # 1,234.56
-                        clean = clean.replace(",", "")
-                elif "," in clean:
-                    parts = clean.split(",")
-                    if len(parts[-1]) == 2: # 585,00
-                        clean = clean.replace(",", ".")
-                    else: # 1,200
-                        clean = clean.replace(",", "")
-                try: return float(clean)
-                except: return 0.0
-
             for group in labor_groups:
                 if group['show_date']:
                     add_p(group['date'], bold=True, space_before=Pt(6), space_after=Pt(0))
@@ -358,7 +363,7 @@ class EstimateDocxGenerator:
                 self._set_run_font(r_names, bold=False)
                 
                 # 3. Total on a new line (aligned right)
-                total_val = sum(parse_price(item.total) for item in group['items'])
+                total_val = sum(self._parse_price(item.total) for item in group['items'])
                 p_total = add_p(f"$ {total_val:,.2f}", alignment=WD_ALIGN_PARAGRAPH.RIGHT, bold=True, space_after=Pt(4))
                 # Explicitly set color for the total
                 self._set_run_font(p_total.runs[0], bold=True, color_rgb=0x000000)
