@@ -24,7 +24,7 @@
     {
             "show_date_header": "<<[Show Date Header]>>",
             "show_date_header_2": "<<[show date header 2]>>",
-            "date_day_name": "<<TEXT([Date], \"DDDD:\")>>",
+            "date_day_name": "<<TEXT([Date], 'DDDD:')>>",
             "guest_count": "<<[Guest]>>",
             "show_guest_header": "<<[Show Guest Header]>>",
             "date_header": "<<[Fechameals]>>",
