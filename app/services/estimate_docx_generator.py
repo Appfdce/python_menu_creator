@@ -275,14 +275,43 @@ class EstimateDocxGenerator:
                 add_p(meal.description, italic=True, space_before=Pt(0))
 
             # --- MEAL LEVEL ---
+            # Group subcategories by name to avoid repetitions (e.g. multiple "Including" or "Vegan" blocks)
+            grouped_subs = [] 
             for i in range(1, 13):
-                sub_name = getattr(meal, f"subcategory_{i}_name", "")
-                sub_desc = getattr(meal, f"subcategory_{i}_description", "")
-                sub_items = getattr(meal, f"subcategory_{i}_items", [])
+                s_name = getattr(meal, f"subcategory_{i}_name", "").strip()
+                s_desc = getattr(meal, f"subcategory_{i}_description", "").strip()
+                s_items = getattr(meal, f"subcategory_{i}_items", [])
 
-                if not sub_name and not sub_items:
+                if not s_name and not s_items:
                     continue
+
+                found = False
+                if s_name:
+                    for gs in grouped_subs:
+                        if gs['name'] == s_name:
+                            # Append unique items
+                            existing_names = {it.name for it in gs['items']}
+                            for it in s_items:
+                                if it.name not in existing_names:
+                                    gs['items'].append(it)
+                                    existing_names.add(it.name)
+                            if s_desc and s_desc not in gs['desc']:
+                                gs['desc'] = (gs['desc'] + " " + s_desc).strip()
+                            found = True
+                            break
                 
+                if not found:
+                    grouped_subs.append({
+                        'name': s_name,
+                        'desc': s_desc,
+                        'items': list(s_items)
+                    })
+
+            for gs in grouped_subs:
+                sub_name = gs['name']
+                sub_desc = gs['desc']
+                sub_items = gs['items']
+
                 if sub_name:
                     sub_p = add_p(sub_name, bold=True, space_before=Pt(6))
                     sub_p.runs[0].underline = True
