@@ -168,6 +168,34 @@ class EstimateDocxGenerator:
         doc = Document(self.template_path)
         self._replace_placeholders(doc, request)
 
+        # De-duplicate meals to avoid repetitions (common in some data sources)
+        unique_meals_map = {} # sig -> meal
+        for m in request.meals:
+            m_dict = m.model_dump()
+            m_dict.pop('show_date_header', None)
+            # Signature based on content to identify duplicates
+            sig = str(sorted(m_dict.items(), key=lambda x: x[0]))
+            if sig not in unique_meals_map:
+                unique_meals_map[sig] = m
+            else:
+                # If this instance has show_date_header=True, prefer it
+                if m.show_date_header:
+                    unique_meals_map[sig] = m
+        
+        # Preserve original order as much as possible
+        unique_meals = []
+        seen_sigs = set()
+        for m in request.meals:
+            m_dict = m.model_dump()
+            m_dict.pop('show_date_header', None)
+            sig = str(sorted(m_dict.items(), key=lambda x: x[0]))
+            if sig not in seen_sigs:
+                seen_sigs.add(sig)
+                unique_meals.append(unique_meals_map[sig])
+        
+        # Use unique_meals instead of request.meals for content generation
+        # request.meals = unique_meals # We can also just use unique_meals below
+
         marker_para = None
         for p in doc.paragraphs:
             if "[DYNAMIC_CONTENT_START]" in p.text:
@@ -227,7 +255,7 @@ class EstimateDocxGenerator:
             add_p("Dietary Restrictions", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
             add_p(request.event.dietary_restrictions, space_after=Pt(0))
 
-        for meal in request.meals:
+        for meal in unique_meals:
             if meal.show_date_header:
                 add_p(meal.date_header, bold=True, space_before=Pt(6))
                 add_hr()
@@ -289,7 +317,7 @@ class EstimateDocxGenerator:
         add_p("Food Service", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0), space_before=Pt(10))
         add_p(f"Based on {request.event.guests} Guests", size=Pt(10), italic=True, space_before=Pt(0))
         
-        for meal in request.meals:
+        for meal in unique_meals:
             if meal.show_date_header:
                 add_p(meal.date_header, bold=True, space_before=Pt(6), space_after=Pt(0))
                 add_hr()
