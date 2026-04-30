@@ -40,6 +40,13 @@ class Meal(BaseSchema):
     provide_by_client: bool = False
     total_food_por_dia: str = ""
     
+    # Fields for Per Day Estimate
+    show_date_header_2: bool = False
+    date_day_name: str = ""
+    guest_count: str = ""
+    show_guest_header: bool = False
+    total_category_precio_guest_por_dia: str = ""
+    
     # Flattened subcategories to match AppSheet fixed columns
     subcategory_1_name: Optional[str] = ""
     subcategory_1_description: Optional[str] = ""

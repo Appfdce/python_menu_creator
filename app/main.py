@@ -15,6 +15,7 @@ from app.services.individual_sign_generator import generate_individual_signs_doc
 from app.services.google_drive_service import drive_service
 from app.services.appsheet_service import appsheet_service
 from app.services.estimate_docx_generator import EstimateDocxGenerator
+from app.services.estimate_perday_docx_generator import EstimatePerDayDocxGenerator
 from app.schemas.estimate_total import EstimateTotalRequest
 from app.schemas.excel_menu import ExcelMenuRequest
 from app.services.excel_generator import generate_individual_excel, generate_combined_excel
@@ -194,6 +195,75 @@ async def generate_estimate_total(
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers=headers
     )
+
+@app.post("/api/v1/menus/generate-estimate-perday", response_class=Response)
+async def generate_estimate_perday(
+    request: Request,
+    upload_to_drive: bool = Query(True)
+):
+    """
+    Generates a Word Estimate for Per Day events based on the provided JSON payload.
+    """
+    import re
+    import json
+    from fastapi import HTTPException
+    
+    # 1. Read raw body and sanitize trailing commas
+    raw_body = await request.body()
+    decoded_body = raw_body.decode("utf-8")
+    
+    # AppSheet templates inherently leave trailing commas in JSON arrays
+    sanitized_body = re.sub(r',\s*([\]}])', r'\1', decoded_body)
+    
+    # 2. Parse into Dictionary
+    try:
+        parsed_json = json.loads(sanitized_body)
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON Decode Error after sanitization: {e}")
+        logger.error(f"Sanitized Body: {sanitized_body[:1000]}...")
+        raise HTTPException(status_code=400, detail=f"Invalid JSON format. Check AppSheet template: {e}")
+        
+    # 3. Validate against Pydantic Schema
+    try:
+        validated_request = EstimateTotalRequest(**parsed_json)
+    except Exception as e:
+        logger.error(f"Pydantic Validation Error: {e}")
+        raise HTTPException(status_code=422, detail=f"Schema Validation Error: {e}")
+
+    # 4. Generate DOCX
+    generator = EstimatePerDayDocxGenerator()
+    docx_stream = generator.generate_docx(validated_request)
+    
+    clean_event_name = validated_request.event.name.split(".")[0] if validated_request.event.name else "Unnamed"
+    safe_event_name = clean_event_name.replace(" ", "_").replace("/", "-")
+    filename = f"Estimate_PerDay_{safe_event_name}.docx"
+
+    if upload_to_drive:
+        import json
+        result = drive_service.upload_file(docx_stream, filename)
+        if result["success"]:
+            # Callback to AppSheet (Add new row to BDProposal History)
+            appsheet_result = appsheet_service.add_proposal_history_row(
+                event_id=validated_request.event_id,
+                doc_url=result["download_link"]
+            )
+            result["appsheet_update"] = appsheet_result
+            
+            return Response(
+                content=json.dumps(result),
+                media_type="application/json"
+            )
+
+    headers = {
+        'Content-Disposition': f'attachment; filename="{filename}"'
+    }
+    
+    return Response(
+        content=docx_stream.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers=headers
+    )
+
 
 @app.post("/api/v1/menus/generate-excel", response_class=Response)
 async def generate_excel_endpoint(
