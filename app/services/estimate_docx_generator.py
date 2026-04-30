@@ -46,9 +46,19 @@ class EstimateDocxGenerator:
             run.font.color.rgb = RGBColor((color_rgb >> 16) & 0xff, (color_rgb >> 8) & 0xff, color_rgb & 0xff)
 
     def _format_currency(self, val):
-        if not val:
+        if val is None:
             return ""
+        
+        if isinstance(val, (int, float)):
+            # Format float to X.XXX,XX (European/Latin style)
+            s = f"{abs(val):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            if val < 0:
+                return f"-$ {s}"
+            return f"$ {s}"
+
         s = str(val).strip()
+        if not s:
+            return ""
         
         # Only format if it contains digits
         if not any(c.isdigit() for c in s):
@@ -346,12 +356,22 @@ class EstimateDocxGenerator:
         add_p("Food Service", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0), space_before=Pt(10))
         add_p(f"Based on {request.event.guests} Guests", size=Pt(10), italic=True, space_before=Pt(0))
         
+        # Pre-calculate daily food totals to ensure accuracy (ignoring "Provided by client" items)
+        daily_food_totals = {}
+        for m in unique_meals:
+            if not m.provide_by_client:
+                val = self._parse_price(m.total_category_precio)
+                daily_food_totals[m.date_header] = daily_food_totals.get(m.date_header, 0.0) + val
+
         for meal in unique_meals:
             if meal.show_date_header:
                 add_p(meal.date_header, bold=True, space_before=Pt(6), space_after=Pt(0))
                 add_hr()
-                if meal.total_food_por_dia:
-                    add_p(f"{self._format_currency(meal.total_food_por_dia)}", bold=True, space_after=Pt(4))
+                
+                # Use calculated total to ensure it matches the items listed below
+                total_val = daily_food_totals.get(meal.date_header, 0.0)
+                if total_val >= 0:
+                    add_p(self._format_currency(total_val), bold=True, space_after=Pt(4))
             
             p = add_p(space_after=Pt(2))
             p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
@@ -421,7 +441,7 @@ class EstimateDocxGenerator:
                 
                 # 3. Total on a new line (aligned right)
                 total_val = sum(self._parse_price(item.total) for item in group['items'])
-                p_total = add_p(f"$ {total_val:,.2f}", alignment=WD_ALIGN_PARAGRAPH.RIGHT, bold=True, space_after=Pt(4))
+                p_total = add_p(self._format_currency(total_val), alignment=WD_ALIGN_PARAGRAPH.RIGHT, bold=True, space_after=Pt(4))
                 # Explicitly set color for the total
                 self._set_run_font(p_total.runs[0], bold=True, color_rgb=0x000000)
 
