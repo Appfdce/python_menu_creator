@@ -496,10 +496,26 @@ class EstimateDocxGenerator:
             except ValueError:
                 return False
 
+        # Recalculate Food and Extras totals to ensure summary matches detail (excluding "Provided by client" items)
+        real_food_total = sum(daily_food_totals.values())
+        
+        real_extras_total = 0.0
+        for ex in request.extras_events:
+            if not ex.provide_by_client:
+                real_extras_total += self._parse_price(ex.total)
+        
+        # Calculate the difference to adjust the grand total
+        current_food_total = self._parse_price(fin.total_food_service)
+        current_extras_total = self._parse_price(fin.total_extras_events)
+        total_diff = (current_food_total - real_food_total) + (current_extras_total - real_extras_total)
+        
+        current_grand_total = self._parse_price(fin.total_estimate)
+        real_grand_total = current_grand_total - total_diff
+
         summary_items = [
-            ("Food", fin.total_food_service, True),
+            ("Food", self._format_currency(real_food_total), True),
             ("Labor Cost", fin.total_labor_cost, True),
-            ("Extras Services", fin.total_extras_events, True),
+            ("Extras Services", self._format_currency(real_extras_total), True),
             (f"{fin.tax_rate} {fin.tax_name}", fin.total_tax, True),
         ]
         
@@ -540,7 +556,7 @@ class EstimateDocxGenerator:
         total_p = add_p(space_after=Pt(2), space_before=Pt(8))
         total_p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
         
-        r_total = total_p.add_run(f"Final\t{self._format_currency(fin.total_estimate)}")
+        r_total = total_p.add_run(f"Final\t{self._format_currency(real_grand_total)}")
         self._set_run_font(r_total, bold=True, size_pt=Pt(10), color_rgb=self.primary_color)
         
         p_pr = total_p._element.get_or_add_pPr()
