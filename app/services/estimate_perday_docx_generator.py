@@ -533,12 +533,12 @@ class EstimatePerDayDocxGenerator:
             ("Gratuity", real_gratuity, False),
             ("Discount", -abs(real_discount), False),
             ("Donation", -abs(real_donation), False),
-            ("SubTotal 1", subtotal_1, True, True), # Label, value, always, is_bold
+            ("Event Subtotal (Pre-Tax)", subtotal_1, True, True),
             (f"{fin.tax_rate} {fin.tax_name}", real_tax, True),
-            ("SubTotal 2", subtotal_2, True, True),
-            ("Extras Services (Rentals)", real_extras_rentals_total, True, False, True), # informative only
+            ("Subtotal after Taxes", subtotal_2, True, True),
+            ("Extras Services (Rentals)", real_extras_rentals_total, True, False, True),
             (f"{fin.service_charge_rate} Service Charge", real_service_charge, True),
-            ("SubTotal 4", subtotal_4, True, True),
+            ("Total Estimated Amount", subtotal_4, True, True),
             ("Credit Card Fee", real_cc_fee, False),
         ]
 
@@ -572,7 +572,7 @@ class EstimatePerDayDocxGenerator:
         total_p = add_p(space_after=Pt(2), space_before=Pt(8))
         total_p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
         
-        r_total = total_p.add_run(f"Final\t{self._format_currency(real_grand_total)}")
+        r_total = total_p.add_run(f"Final Balance Due\t{self._format_currency(real_grand_total)}")
         self._set_run_font(r_total, bold=True, size_pt=Pt(10), color_rgb=self.primary_color)
         
         p_pr = total_p._element.get_or_add_pPr()
