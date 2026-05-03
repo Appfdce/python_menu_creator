@@ -68,6 +68,8 @@ class EstimatePerDayDocxGenerator:
     def _parse_price(self, val):
         if not val:
             return 0.0
+        if isinstance(val, (int, float)):
+            return float(val)
         clean = str(val).replace("$", "").replace(" ", "").strip()
         if "," in clean and "." in clean:
             if clean.rfind(",") > clean.rfind("."): 
@@ -82,6 +84,18 @@ class EstimatePerDayDocxGenerator:
                 clean = clean.replace(",", "")
         try:
             return float(clean)
+        except (ValueError, TypeError):
+            return 0.0
+
+    def _parse_percentage(self, val):
+        if not val:
+            return 0.0
+        if isinstance(val, (int, float)):
+            return float(val) / 100.0
+        
+        clean = str(val).replace("%", "").strip()
+        try:
+            return float(clean) / 100.0
         except (ValueError, TypeError):
             return 0.0
 
@@ -456,55 +470,98 @@ class EstimatePerDayDocxGenerator:
         add_p("Cost of Balance", bold=True, size=Pt(10), color=self.primary_color, space_before=Pt(10))
         fin = request.financials
         
-        def is_zero(val):
-            if not val: return True
-            clean_val = str(val).replace("$", "").replace(",", "").strip()
-            try:
-                return float(clean_val) == 0
-            except ValueError:
-                return False
-
-        summary_items = [
-            ("Food", fin.total_food_service, True),
-            ("Labor Cost", fin.total_labor_cost, True),
-            ("Extras Services", fin.total_extras_events, True),
-            (f"{fin.tax_rate} {fin.tax_name}", fin.total_tax, True),
-        ]
+        # --- RE-CALCULATION ENGINE (Excel Model) ---
+        # 1. Base Components
+        real_food_total = sum(daily_food_totals.values())
         
-        if not is_zero(fin.total_extras_sales):
-            summary_items.append(("Extras Services", fin.total_extras_sales, True))
+        real_labor_total = 0.0
+        if request.labor_services:
+            for group in labor_groups:
+                real_labor_total += sum(self._parse_price(item.total) for item in group['items'])
             
-        summary_items.append((f"{fin.service_charge_rate} Service Charge", fin.total_service_charge, True))
+        real_extras_sales_total = 0.0
+        real_extras_rentals_total = 0.0
+        if request.extras_events:
+            for ex in unique_extras:
+                if not ex.provide_by_client:
+                    val = self._parse_price(ex.total)
+                    if ex.is_sales: real_extras_sales_total += val
+                    if ex.is_rental: real_extras_rentals_total += val
 
-        if fin.discount and not is_zero(fin.discount):
-            val = fin.discount if str(fin.discount).startswith("-") else f"-{fin.discount}"
-            summary_items.append(("Discount", val, False))
-        if fin.donation and not is_zero(fin.donation):
-            val = fin.donation if str(fin.donation).startswith("-") else f"-{fin.donation}"
-            summary_items.append(("Donation", val, False))
-        if fin.total_credit_card and not is_zero(fin.total_credit_card):
-            summary_items.append(("Credit Card Fee", fin.total_credit_card, False))
-        if fin.gratuity and not is_zero(fin.gratuity):
-            summary_items.append(("Gratuity", fin.gratuity, False))
+        real_gratuity = self._parse_price(fin.gratuity)
+        real_discount = self._parse_price(fin.discount)
+        real_donation = self._parse_price(fin.donation)
 
-        for label, val, show_always in summary_items:
+        # 2. SubTotal 1 & Taxes
+        # SubTotal 1 = Food + Labor + Extras Sales + Gratuity - Discount - Donation
+        subtotal_1 = (real_food_total + real_labor_total + real_extras_sales_total + 
+                      real_gratuity - abs(real_discount) - abs(real_donation))
+        
+        tax_rate = self._parse_percentage(fin.tax_rate)
+        real_tax = subtotal_1 * tax_rate
+        subtotal_2 = subtotal_1 + real_tax
+
+        # 3. Service Charge & SubTotal 4
+        # Service Charge = (Food + Labor) * Rate
+        service_charge_rate = self._parse_percentage(fin.service_charge_rate)
+        real_service_charge = (real_food_total + real_labor_total) * service_charge_rate
+        
+        # Subtotal 4 = Subtotal 2 + Service Charge (Rentals are informative only)
+        subtotal_4 = subtotal_2 + real_service_charge
+
+        # 4. Credit Card & Final Total
+        cc_rate = self._parse_percentage(fin.credit_card_percent)
+        real_cc_fee = subtotal_4 * cc_rate
+        real_grand_total = subtotal_4 + real_cc_fee
+
+        # --- RENDER SUMMARY ---
+        summary_items = [
+            ("Food", real_food_total, True),
+            ("Labor Cost", real_labor_total, True),
+            ("Extras Services (Sales)", real_extras_sales_total, True),
+            ("Gratuity", real_gratuity, False),
+            ("Discount", -abs(real_discount), False),
+            ("Donation", -abs(real_donation), False),
+            ("SubTotal 1", subtotal_1, True, True), # Label, value, always, is_bold
+            (f"{fin.tax_rate} {fin.tax_name}", real_tax, True),
+            ("SubTotal 2", subtotal_2, True, True),
+            ("Extras Services (Rentals)", real_extras_rentals_total, True, False, True), # informative only
+            (f"{fin.service_charge_rate} Service Charge", real_service_charge, True),
+            ("SubTotal 4", subtotal_4, True, True),
+            ("Credit Card Fee", real_cc_fee, False),
+        ]
+
+        for item in summary_items:
+            label = item[0]
+            val = item[1]
+            show_always = item[2]
+            is_bold_item = item[3] if len(item) > 3 else False
+            is_informative = item[4] if len(item) > 4 else False
+
+            if not show_always and abs(val) < 0.01:
+                continue
+                
             p = add_p(space_after=Pt(2))
             p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
             
             r_label = p.add_run(label)
-            self._set_run_font(r_label)
+            self._set_run_font(r_label, bold=is_bold_item)
+            
             r_tab = p.add_run("\t")
             self._set_run_font(r_tab)
             
-            if not is_zero(val):
-                r_val = p.add_run(self._format_currency(val))
-                self._set_run_font(r_val)
+            formatted_val = self._format_currency(val)
+            if is_informative:
+                formatted_val = f"({formatted_val}*) "
+            
+            r_val = p.add_run(formatted_val)
+            self._set_run_font(r_val, bold=is_bold_item)
 
-        # Total Line
+        # Final Total Line
         total_p = add_p(space_after=Pt(2), space_before=Pt(8))
         total_p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
         
-        r_total = total_p.add_run(f"Final\t{self._format_currency(fin.total_estimate)}")
+        r_total = total_p.add_run(f"Final\t{self._format_currency(real_grand_total)}")
         self._set_run_font(r_total, bold=True, size_pt=Pt(10), color_rgb=self.primary_color)
         
         p_pr = total_p._element.get_or_add_pPr()

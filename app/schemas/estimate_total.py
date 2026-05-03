@@ -128,6 +128,7 @@ class Financials(BaseSchema):
     discount: str = ""
     donation: str = ""
     total_credit_card: str = ""
+    credit_card_percent: str = "0"
     gratuity: str = ""
     total_estimate: str = ""
 
