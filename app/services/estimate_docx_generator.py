@@ -50,8 +50,8 @@ class EstimateDocxGenerator:
             return ""
         
         if isinstance(val, (int, float)):
-            # Format float to X.XXX,XX (European/Latin style)
-            s = f"{abs(val):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            # US Format: 1,234.56
+            s = f"{abs(val):,.2f}"
             if val < 0:
                 return f"-$ {s}"
             return f"$ {s}"
@@ -60,7 +60,6 @@ class EstimateDocxGenerator:
         if not s:
             return ""
         
-        # Only format if it contains digits
         if not any(c.isdigit() for c in s):
             return s
 
@@ -69,7 +68,7 @@ class EstimateDocxGenerator:
             is_negative = True
             s = s[1:].strip()
             
-        # Remove existing $ and extra spaces
+        # Clean currency symbols and standardize to US format if possible
         s = s.replace("$", "").strip()
         
         if is_negative:
@@ -83,18 +82,22 @@ class EstimateDocxGenerator:
             return float(val)
         # Clean currency symbols and spaces
         clean = str(val).replace("$", "").replace(" ", "").strip()
-        # Handle formats like 1.234,56 or 585,00
+        
+        # Priority to US Format: 1,234.56
+        # If there are both , and .
         if "," in clean and "." in clean:
-            if clean.rfind(",") > clean.rfind("."): # 1.234,56
+            if clean.rfind(".") > clean.rfind(","): # US style: 1,234.56
+                clean = clean.replace(",", "")
+            else: # European style fallback: 1.234,56
                 clean = clean.replace(".", "").replace(",", ".")
-            else: # 1,234.56
-                clean = clean.replace(",", "")
         elif "," in clean:
+            # Ambiguous: 1,234 (thousands) or 1,23 (decimal)
             parts = clean.split(",")
-            if len(parts[-1]) == 2: # 585,00
-                clean = clean.replace(",", ".")
-            else: # 1,200
+            if len(parts[-1]) == 3: # Likely thousands: 1,000
                 clean = clean.replace(",", "")
+            else: # Likely decimal: 1,23
+                clean = clean.replace(",", ".")
+        
         try:
             return float(clean)
         except (ValueError, TypeError):
@@ -106,11 +109,12 @@ class EstimateDocxGenerator:
         if isinstance(val, (int, float)):
             return float(val) / 100.0
         
-        clean = str(val).replace("%", "").strip()
-        try:
-            return float(clean) / 100.0
-        except (ValueError, TypeError):
-            return 0.0
+        # Clean percentage symbol and spaces
+        clean = str(val).replace("%", "").replace(" ", "").strip()
+        
+        # Handle formats like 6,350 or 20,00 using robust price logic
+        num = self._parse_price(clean)
+        return num / 100.0
 
     def _replace_placeholders(self, doc, request: EstimateTotalRequest):
         """Replaces {{TAG}} placeholders in the document paragraphs and tables."""

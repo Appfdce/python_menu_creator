@@ -44,7 +44,8 @@ class EstimatePerDayDocxGenerator:
         if val is None:
             return ""
         if isinstance(val, (int, float)):
-            s = f"{abs(val):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            # US Format: 1,234.56
+            s = f"{abs(val):,.2f}"
             if val < 0:
                 return f"-$ {s}"
             return f"$ {s}"
@@ -70,18 +71,23 @@ class EstimatePerDayDocxGenerator:
             return 0.0
         if isinstance(val, (int, float)):
             return float(val)
+        # Clean currency symbols and spaces
         clean = str(val).replace("$", "").replace(" ", "").strip()
+        
+        # Priority to US Format: 1,234.56
         if "," in clean and "." in clean:
-            if clean.rfind(",") > clean.rfind("."): 
+            if clean.rfind(".") > clean.rfind(","): # US style: 1,234.56
+                clean = clean.replace(",", "")
+            else: # European style fallback: 1.234,56
                 clean = clean.replace(".", "").replace(",", ".")
-            else: 
-                clean = clean.replace(",", "")
         elif "," in clean:
+            # Ambiguous: 1,234 (thousands) or 1,23 (decimal)
             parts = clean.split(",")
-            if len(parts[-1]) == 2: 
-                clean = clean.replace(",", ".")
-            else: 
+            if len(parts[-1]) == 3: # Likely thousands: 1,000
                 clean = clean.replace(",", "")
+            else: # Likely decimal: 1,23
+                clean = clean.replace(",", ".")
+        
         try:
             return float(clean)
         except (ValueError, TypeError):
@@ -93,11 +99,12 @@ class EstimatePerDayDocxGenerator:
         if isinstance(val, (int, float)):
             return float(val) / 100.0
         
-        clean = str(val).replace("%", "").strip()
-        try:
-            return float(clean) / 100.0
-        except (ValueError, TypeError):
-            return 0.0
+        # Clean percentage symbol and spaces
+        clean = str(val).replace("%", "").replace(" ", "").strip()
+        
+        # Handle formats like 6,350 or 20,00 using robust price logic
+        num = self._parse_price(clean)
+        return num / 100.0
 
     def _replace_placeholders(self, doc, request: EstimateTotalRequest, daily_guests_str: str):
         replacements = {
