@@ -112,7 +112,12 @@ class EstimateDocxGenerator:
         # Clean percentage symbol and spaces
         clean = str(val).replace("%", "").replace(" ", "").strip()
         
-        # Handle formats like 6,350 or 20,00 using robust price logic
+        # For percentages, if there's a comma, it's ALMOST ALWAYS a decimal separator 
+        # (e.g., 6,350% in Connecticut or 20,00% Service Charge)
+        if "," in clean and "." not in clean:
+            clean = clean.replace(",", ".")
+            
+        # Use _parse_price logic for final conversion
         num = self._parse_price(clean)
         return num / 100.0
 
