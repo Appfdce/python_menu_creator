@@ -392,19 +392,32 @@ class EstimatePerDayDocxGenerator:
         if request.labor_services:
             add_p("Labor Service Fees", bold=True, size=Pt(10), color=self.primary_color, space_before=Pt(15), space_after=Pt(0))
             
+            # 1. De-duplicate labor services first to avoid repetitions (with normalization)
             seen_labor = set()
             unique_labor = []
             for labor in request.labor_services:
-                key = (labor.date_header, labor.hours, labor.name, labor.total)
+                norm_date = (labor.date_header or "").strip()
+                norm_hours = self._parse_price(labor.hours)
+                norm_name = (labor.name or "").strip()
+                norm_total = self._parse_price(labor.total)
+                
+                key = (norm_date, norm_hours, norm_name, norm_total)
                 if key not in seen_labor:
                     seen_labor.add(key)
                     unique_labor.append(labor)
 
+            # 2. Group labor by date and hours (using normalized comparison)
             labor_groups = []
             for labor in unique_labor:
                 found = False
+                norm_labor_date = (labor.date_header or "").strip()
+                norm_labor_hours = self._parse_price(labor.hours)
+                
                 for g in labor_groups:
-                    if g['date'] == labor.date_header and g['hours'] == labor.hours:
+                    norm_g_date = (g['date'] or "").strip()
+                    norm_g_hours = self._parse_price(g['hours'])
+                    
+                    if norm_g_date == norm_labor_date and norm_g_hours == norm_labor_hours:
                         g['items'].append(labor)
                         found = True
                         break
@@ -443,10 +456,17 @@ class EstimatePerDayDocxGenerator:
         if request.extras_events:
             add_p("Extras Services", bold=True, size=Pt(10), color=self.primary_color, space_before=Pt(15), space_after=Pt(0))
             
+            # De-duplicate extras events (preserve order, with normalization)
             seen_extras = set()
             unique_extras = []
             for extra in request.extras_events:
-                key = (extra.date_header, extra.is_rental, extra.is_sales, extra.name, extra.name_rental, extra.name_sales, extra.total, extra.provide_by_client)
+                norm_date = (extra.date_header or "").strip()
+                norm_name = (extra.name or "").strip()
+                norm_rental = (extra.name_rental or "").strip()
+                norm_sales = (extra.name_sales or "").strip()
+                norm_total = self._parse_price(extra.total)
+                
+                key = (norm_date, extra.is_rental, extra.is_sales, norm_name, norm_rental, norm_sales, norm_total, extra.provide_by_client)
                 if key not in seen_extras:
                     seen_extras.add(key)
                     unique_extras.append(extra)
