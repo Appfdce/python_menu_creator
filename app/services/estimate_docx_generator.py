@@ -264,7 +264,7 @@ class EstimateDocxGenerator:
         if not marker_para:
             logger.warning("Marker [DYNAMIC_CONTENT_START] not found. Appending to end.")
 
-        def add_p(text="", alignment=None, space_after=Pt(6), space_before=Pt(0), bold=False, italic=False, size=Pt(10), color=0x333333, underline=False):
+        def add_p(text="", alignment=None, space_after=Pt(0), space_before=Pt(0), bold=False, italic=False, size=Pt(10), color=0x333333, underline=False):
             if marker_para:
                 p = marker_para.insert_paragraph_before(text)
             else:
