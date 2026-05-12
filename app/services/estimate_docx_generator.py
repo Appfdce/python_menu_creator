@@ -121,6 +121,30 @@ class EstimateDocxGenerator:
         num = self._parse_price(clean)
         return num / 100.0
 
+    def _parse_date_header(self, val):
+        from datetime import datetime
+        if not val:
+            return datetime.min
+        clean = str(val).strip()
+        
+        # Common formats used in AppSheet / English locale dates
+        # e.g., "June, Wednesday 17 2026" -> "%B, %A %d %Y"
+        formats = [
+            "%B, %A %d %Y", # June, Wednesday 17 2026
+            "%A, %B %d %Y", # Wednesday, June 17 2026
+            "%B %d %Y",
+            "%m/%d/%Y",
+            "%d/%m/%Y",
+            "%Y-%m-%d"
+        ]
+        for fmt in formats:
+            try:
+                return datetime.strptime(clean, fmt)
+            except (ValueError, TypeError):
+                continue
+        
+        return datetime.min
+
     def _replace_placeholders(self, doc, request: EstimateTotalRequest):
         """Replaces {{TAG}} placeholders in the document paragraphs and tables."""
         replacements = {
@@ -225,6 +249,8 @@ class EstimateDocxGenerator:
             if sig not in seen_sigs:
                 seen_sigs.add(sig)
                 unique_meals.append(unique_meals_map[sig])
+        # Sort meals chronologically (stable sort keeps original sub-order within a day)
+        unique_meals.sort(key=lambda m: self._parse_date_header(m.date_header))
         
         # Use unique_meals instead of request.meals for content generation
         # request.meals = unique_meals # We can also just use unique_meals below
@@ -288,8 +314,11 @@ class EstimateDocxGenerator:
             add_p("Dietary Restrictions", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
             add_p(request.event.dietary_restrictions, space_after=Pt(0))
 
+        printed_dates_menu = set()
         for meal in unique_meals:
-            if meal.show_date_header:
+            norm_date = (meal.date_header or "").strip()
+            if norm_date not in printed_dates_menu:
+                printed_dates_menu.add(norm_date)
                 add_p(meal.date_header, bold=True, space_before=Pt(6))
                 add_hr()
             
@@ -386,8 +415,11 @@ class EstimateDocxGenerator:
                 val = self._parse_price(m.total_category_precio)
                 daily_food_totals[m.date_header] = daily_food_totals.get(m.date_header, 0.0) + val
 
+        printed_dates_food = set()
         for meal in unique_meals:
-            if meal.show_date_header:
+            norm_date = (meal.date_header or "").strip()
+            if norm_date not in printed_dates_food:
+                printed_dates_food.add(norm_date)
                 add_p(meal.date_header, bold=True, space_before=Pt(6), space_after=Pt(0))
                 add_hr()
                 
@@ -450,8 +482,14 @@ class EstimateDocxGenerator:
                         'items': [labor]
                     })
 
+            # Sort labor groups chronologically
+            labor_groups.sort(key=lambda g: self._parse_date_header(g['date']))
+
+            printed_dates_labor = set()
             for group in labor_groups:
-                if group['show_date']:
+                norm_date = (group['date'] or "").strip()
+                if norm_date not in printed_dates_labor:
+                    printed_dates_labor.add(norm_date)
                     add_p(group['date'], bold=True, space_before=Pt(6), space_after=Pt(0))
                     add_hr()
                 
@@ -498,8 +536,14 @@ class EstimateDocxGenerator:
                     seen_extras.add(key)
                     unique_extras.append(extra)
 
+            # Sort extras chronologically
+            unique_extras.sort(key=lambda ex: self._parse_date_header(ex.date_header))
+
+            printed_dates_extras = set()
             for extra in unique_extras:
-                if extra.show_date_header:
+                norm_date = (extra.date_header or "").strip()
+                if norm_date not in printed_dates_extras:
+                    printed_dates_extras.add(norm_date)
                     add_p(extra.date_header, bold=True, space_after=Pt(0))
                     add_hr()
                 

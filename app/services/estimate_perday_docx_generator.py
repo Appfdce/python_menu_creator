@@ -110,6 +110,28 @@ class EstimatePerDayDocxGenerator:
         num = self._parse_price(clean)
         return num / 100.0
 
+    def _parse_date_header(self, val):
+        from datetime import datetime
+        if not val:
+            return datetime.min
+        clean = str(val).strip()
+        
+        formats = [
+            "%B, %A %d %Y", 
+            "%A, %B %d %Y", 
+            "%B %d %Y",
+            "%m/%d/%Y",
+            "%d/%m/%Y",
+            "%Y-%m-%d"
+        ]
+        for fmt in formats:
+            try:
+                return datetime.strptime(clean, fmt)
+            except (ValueError, TypeError):
+                continue
+        
+        return datetime.min
+
     def _replace_placeholders(self, doc, request: EstimateTotalRequest, daily_guests_str: str):
         replacements = {
             "{{EVENT_NAME}}": request.event.name,
@@ -207,11 +229,14 @@ class EstimatePerDayDocxGenerator:
                 seen_sigs.add(sig)
                 unique_meals.append(unique_meals_map[sig])
 
+        # Sort meals chronologically (stable sort)
+        unique_meals.sort(key=lambda m: self._parse_date_header(m.date_header))
+
         # Build DAILY_GUESTS string
         daily_guests_lines = []
         seen_guests_dates = set()
         for meal in unique_meals:
-            if meal.show_date_header_2 and meal.date_day_name:
+            if meal.date_day_name:
                 key = (meal.date_day_name, meal.guest_count)
                 if key not in seen_guests_dates:
                     seen_guests_dates.add(key)
@@ -273,8 +298,11 @@ class EstimatePerDayDocxGenerator:
             add_p("Dietary Restrictions", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
             add_p(request.event.dietary_restrictions, space_after=Pt(0))
 
+        printed_dates_menu = set()
         for meal in unique_meals:
-            if meal.show_date_header:
+            norm_date = (meal.date_header or "").strip()
+            if norm_date not in printed_dates_menu:
+                printed_dates_menu.add(norm_date)
                 add_p(meal.date_header, bold=True, space_before=Pt(6))
                 add_hr()
             
@@ -363,8 +391,12 @@ class EstimatePerDayDocxGenerator:
                 val = self._parse_price(m.total_category_precio_guest_por_dia)
                 daily_food_totals[m.date_header] = daily_food_totals.get(m.date_header, 0.0) + val
 
+        printed_dates_food = set()
+        printed_guests_food = set()
         for meal in unique_meals:
-            if meal.show_date_header:
+            norm_date = (meal.date_header or "").strip()
+            if norm_date not in printed_dates_food:
+                printed_dates_food.add(norm_date)
                 add_p(meal.date_header, bold=True, space_before=Pt(6), space_after=Pt(0))
                 add_hr()
                 
@@ -372,7 +404,9 @@ class EstimatePerDayDocxGenerator:
                 if total_val >= 0:
                     add_p(self._format_currency(total_val), bold=True, space_after=Pt(4))
                     
-            if meal.show_guest_header:
+            guest_key = (norm_date, meal.guest_count)
+            if guest_key not in printed_guests_food:
+                printed_guests_food.add(guest_key)
                 add_p(f"Based on {meal.guest_count} Guests", size=Pt(10), italic=True, space_before=Pt(0))
             
             p = add_p(space_after=Pt(2))
@@ -429,8 +463,14 @@ class EstimatePerDayDocxGenerator:
                         'items': [labor]
                     })
 
+            # Sort labor groups chronologically
+            labor_groups.sort(key=lambda g: self._parse_date_header(g['date']))
+
+            printed_dates_labor = set()
             for group in labor_groups:
-                if group['show_date']:
+                norm_date = (group['date'] or "").strip()
+                if norm_date not in printed_dates_labor:
+                    printed_dates_labor.add(norm_date)
                     add_p(group['date'], bold=True, space_before=Pt(6), space_after=Pt(0))
                     add_hr()
                 
@@ -471,8 +511,14 @@ class EstimatePerDayDocxGenerator:
                     seen_extras.add(key)
                     unique_extras.append(extra)
 
+            # Sort extras chronologically
+            unique_extras.sort(key=lambda ex: self._parse_date_header(ex.date_header))
+
+            printed_dates_extras = set()
             for extra in unique_extras:
-                if extra.show_date_header:
+                norm_date = (extra.date_header or "").strip()
+                if norm_date not in printed_dates_extras:
+                    printed_dates_extras.add(norm_date)
                     add_p(extra.date_header, bold=True, space_after=Pt(0))
                     add_hr()
                 
