@@ -119,7 +119,6 @@ class EstimateDocxGenerator:
         return num / 100.0
 
     def _parse_date_header(self, val):
-        from datetime import datetime
         if not val:
             return datetime.min
         clean = str(val).strip()
@@ -302,6 +301,12 @@ class EstimateDocxGenerator:
             bottom.set(qn('w:space'), '1')
             bottom.set(qn('w:color'), '000000')
             p_bdr.append(bottom)
+
+        # --- EVENT HEADER ---
+        if request.event.name:
+            add_p(request.event.name, alignment=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size=Pt(12), color=self.primary_color, space_after=Pt(4))
+        if request.event.address:
+            add_p(request.event.address, alignment=WD_ALIGN_PARAGRAPH.CENTER, size=Pt(9), color=self.text_color, space_after=Pt(12))
 
         # --- MENU SECTION ---
         add_p("MENUS", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
