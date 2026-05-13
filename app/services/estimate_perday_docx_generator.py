@@ -593,8 +593,8 @@ class EstimatePerDayDocxGenerator:
         service_charge_rate = self._parse_percentage(fin.service_charge_rate)
         real_service_charge = (real_food_total + real_labor_total) * service_charge_rate
         
-        # Subtotal 4 = Subtotal 2 + Service Charge (Rentals are informative only)
-        subtotal_4 = subtotal_2 + real_service_charge
+        # Subtotal 4 = Subtotal 2 + Extras Rentals + Service Charge
+        subtotal_4 = subtotal_2 + real_extras_rentals_total + real_service_charge
 
         # 4. Credit Card & Final Total
         cc_rate = self._parse_percentage(fin.credit_card_percent)
@@ -609,10 +609,10 @@ class EstimatePerDayDocxGenerator:
             ("Gratuity", real_gratuity, False),
             ("Discount", -abs(real_discount), False),
             ("Donation", -abs(real_donation), False),
-            ("Event Subtotal (Pre-Tax)", subtotal_1, True, True),
+            # ("Event Subtotal (Pre-Tax)", subtotal_1, True, True), # Removed from view per request
             (f"{fin.tax_rate} {fin.tax_name}", real_tax, True),
             ("Subtotal after Taxes", subtotal_2, True, True),
-            ("Extras Services (Rentals)", real_extras_rentals_total, True, False, True),
+            ("Extras Services (Rentals)", real_extras_rentals_total, True),
             (f"{fin.service_charge_rate} Service Charge", real_service_charge, True),
             ("Total Estimated Amount", subtotal_4, True, True),
             ("Credit Card Fee", real_cc_fee, False),
@@ -621,11 +621,11 @@ class EstimatePerDayDocxGenerator:
         for item in summary_items:
             label = item[0]
             val = item[1]
-            show_always = item[2]
             is_bold_item = item[3] if len(item) > 3 else False
-            is_informative = item[4] if len(item) > 4 else False
 
-            if not show_always and abs(val) < 0.01:
+            # Skip all items with value 0.00 except for critical grand totals
+            is_core_total = label in ["Subtotal after Taxes", "Total Estimated Amount"]
+            if not is_core_total and abs(val) < 0.01:
                 continue
                 
             p = add_p(space_after=Pt(2))
@@ -638,9 +638,6 @@ class EstimatePerDayDocxGenerator:
             self._set_run_font(r_tab)
             
             formatted_val = self._format_currency(val)
-            if is_informative:
-                formatted_val = f"({formatted_val}*) "
-            
             r_val = p.add_run(formatted_val)
             self._set_run_font(r_val, bold=is_bold_item)
 
