@@ -1,5 +1,36 @@
-from pydantic import BaseModel, ConfigDict
+import re
+from pydantic import BaseModel, ConfigDict, field_validator
 from typing import List, Optional
+
+def format_to_us_date(val: str) -> str:
+    """Converts DD/MM/YYYY or DD/MM/YY to MM/DD/YYYY or MM/DD/YY (US format)."""
+    if not val:
+        return val
+    val_clean = str(val).strip()
+    
+    # 1. Match DD/MM/YYYY
+    match1 = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{4})$", val_clean)
+    if match1:
+        day, month, year = match1.groups()
+        return f"{month.zfill(2)}/{day.zfill(2)}/{year}"
+        
+    # 2. Match DD/MM/YY
+    match2 = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{2})$", val_clean)
+    if match2:
+        day, month, year = match2.groups()
+        return f"{month.zfill(2)}/{day.zfill(2)}/{year}"
+        
+    return val
+
+def format_time_range(val: str) -> str:
+    """Injects correct spaces around 'to' in meal time ranges."""
+    if not val:
+        return val
+    # Replace "to" with " to " only if it is preceded by a digit or M/m 
+    # and followed by a digit or A/a/P/p to avoid modifying other words.
+    res = re.sub(r'([0-9Mm])\s*to\s*([0-9AaPp])', r'\1 to \2', str(val), flags=re.IGNORECASE)
+    return ' '.join(res.split())
+
 
 class BaseSchema(BaseModel):
     model_config = ConfigDict(coerce_numbers_to_str=True)
@@ -22,6 +53,11 @@ class EventInfo(BaseSchema):
     end_date_formatted: str = ""
     guests: int = 0
     dietary_restrictions: str = ""
+
+    @field_validator('date_formatted', 'end_date_formatted', mode='after')
+    @classmethod
+    def format_dates(cls, v):
+        return format_to_us_date(v)
 
 class MenuItem(BaseSchema):
     name: str = ""
@@ -96,6 +132,16 @@ class Meal(BaseSchema):
     subcategory_12_description: Optional[str] = ""
     subcategory_12_items: List[MenuItem] = []
 
+    @field_validator('date_header', mode='after')
+    @classmethod
+    def format_date_header(cls, v):
+        return format_to_us_date(v)
+
+    @field_validator('time_range', mode='after')
+    @classmethod
+    def format_times(cls, v):
+        return format_time_range(v)
+
 class LaborService(BaseSchema):
     show_date_header: bool = False
     date_header: str = ""
@@ -103,6 +149,11 @@ class LaborService(BaseSchema):
     hours: str = ""
     name: str = ""
     total: str = ""
+
+    @field_validator('date_header', mode='after')
+    @classmethod
+    def format_date_header(cls, v):
+        return format_to_us_date(v)
 
 class ExtrasEvent(BaseSchema):
     show_date_header: bool = False
@@ -114,6 +165,11 @@ class ExtrasEvent(BaseSchema):
     name_sales: str = ""
     total: str = ""
     provide_by_client: bool = False
+
+    @field_validator('date_header', mode='after')
+    @classmethod
+    def format_date_header(cls, v):
+        return format_to_us_date(v)
 
 class Financials(BaseSchema):
     total_food_service: str = ""
