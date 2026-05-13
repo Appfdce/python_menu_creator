@@ -63,17 +63,14 @@ class EstimateDocxGenerator:
         if not any(c.isdigit() for c in s):
             return s
 
-        is_negative = False
-        if s.startswith("-"):
-            is_negative = True
-            s = s[1:].strip()
-            
-        # Clean currency symbols and standardize to US format if possible
-        s = s.replace("$", "").strip()
+        # Parse robustly to handle any input locale style
+        parsed = self._parse_price(s)
         
-        if is_negative:
-            return f"-$ {s}"
-        return f"$ {s}"
+        # Standardize on US Format: 1,234.56
+        s_formatted = f"{abs(parsed):,.2f}"
+        if parsed < 0:
+            return f"-$ {s_formatted}"
+        return f"$ {s_formatted}"
 
     def _parse_price(self, val):
         if not val:
@@ -415,31 +412,41 @@ class EstimateDocxGenerator:
                 val = self._parse_price(m.total_category_precio)
                 daily_food_totals[m.date_header] = daily_food_totals.get(m.date_header, 0.0) + val
 
-        printed_dates_food = set()
-        for meal in unique_meals:
-            norm_date = (meal.date_header or "").strip()
-            if norm_date not in printed_dates_food:
-                printed_dates_food.add(norm_date)
-                add_p(meal.date_header, bold=True, space_before=Pt(6), space_after=Pt(0))
-                add_hr()
-                
-                # Use calculated total to ensure it matches the items listed below
-                total_val = daily_food_totals.get(meal.date_header, 0.0)
-                if total_val >= 0:
-                    add_p(self._format_currency(total_val), bold=True, space_after=Pt(4))
+        meals_by_date = {}
+        for m in unique_meals:
+            date_key = (m.date_header or "").strip()
+            if date_key not in meals_by_date:
+                meals_by_date[date_key] = []
+            meals_by_date[date_key].append(m)
+
+        for date_header, day_meals in meals_by_date.items():
+            orig_date_header = day_meals[0].date_header
+            add_p(orig_date_header, bold=True, space_before=Pt(6), space_after=Pt(0))
+            add_hr()
             
-            p = add_p(space_after=Pt(2))
-            p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
-            r_label = p.add_run(meal.category_precio_guest)
-            self._set_run_font(r_label)
-            r_spacer = p.add_run("\t") 
-            self._set_run_font(r_spacer)
-            if not meal.provide_by_client:
-                r_val = p.add_run(self._format_currency(meal.total_category_precio))
-                self._set_run_font(r_val, bold=True)
-            else:
-                r_client = p.add_run("Provided by client")
-                self._set_run_font(r_client, italic=True)
+            for meal in day_meals:
+                p = add_p(space_after=Pt(2))
+                p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
+                r_label = p.add_run(meal.category_precio_guest)
+                self._set_run_font(r_label)
+                r_spacer = p.add_run("\t") 
+                self._set_run_font(r_spacer)
+                if not meal.provide_by_client:
+                    r_val = p.add_run(self._format_currency(meal.total_category_precio))
+                    self._set_run_font(r_val, bold=False)
+                else:
+                    r_client = p.add_run("Provided by client")
+                    self._set_run_font(r_client, italic=True)
+
+            # Place daily total at the bottom in bold, aligned right
+            total_val = daily_food_totals.get(orig_date_header, 0.0)
+            if total_val >= 0:
+                p_tot = add_p(space_after=Pt(4))
+                p_tot.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
+                r_spacer = p_tot.add_run("\t")
+                self._set_run_font(r_spacer)
+                r_tot = p_tot.add_run(self._format_currency(total_val))
+                self._set_run_font(r_tot, bold=True)
 
         # 2. Labor
         if request.labor_services:
