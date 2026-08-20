@@ -1,6 +1,17 @@
 import re
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from typing import List, Optional
+
+INVALID_XML_CHARS = re.compile(
+    r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x84\x86-\x9f\ud800-\udfff\ufdd0-\ufddf\ufffe\uffff]"
+)
+
+def sanitize_xml_text(value):
+    """Removes characters that are invalid in XML 1.0 documents (e.g. NULL bytes
+    and control characters coming from AppSheet data)."""
+    if not isinstance(value, str):
+        return value
+    return INVALID_XML_CHARS.sub("", value)
 
 def format_to_us_date(val: str) -> str:
     """Converts DD/MM/YYYY or DD/MM/YY to MM/DD/YYYY or MM/DD/YY (US format)."""
@@ -34,6 +45,13 @@ def format_time_range(val: str) -> str:
 
 class BaseSchema(BaseModel):
     model_config = ConfigDict(coerce_numbers_to_str=True)
+
+    @model_validator(mode='after')
+    def _strip_invalid_xml_chars(self):
+        for name, value in self.__dict__.items():
+            if isinstance(value, str):
+                object.__setattr__(self, name, INVALID_XML_CHARS.sub("", value))
+        return self
 
 class ClientInfo(BaseSchema):
     name: str = ""
