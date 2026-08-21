@@ -42,12 +42,9 @@ financial_test_payload = {
     "extras_events": [
         {
             "date_header": "October, Tuesday 27 2026",
-            "is_rental": True,
-            "is_sales": False,
+            "rental": True,
             "name": "Tent Rental",
-            "name_rental": "Tent Rental",
-            "name_sales": "",
-            "total": "1000",
+            "price": "1000",
             "provide_by_client": False
         }
     ],

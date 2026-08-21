@@ -554,9 +554,9 @@ class EstimateDocxGenerator:
                 norm_name = (extra.name or "").strip()
                 norm_rental = (extra.name_rental or "").strip()
                 norm_sales = (extra.name_sales or "").strip()
-                norm_total = self._parse_price(extra.total)
+                norm_price = self._parse_price(extra.price)
                 
-                key = (norm_date, extra.is_rental, extra.is_sales, norm_name, norm_rental, norm_sales, norm_total, extra.provide_by_client)
+                key = (norm_date, extra.rental, norm_name, norm_rental, norm_sales, norm_price, extra.provide_by_client)
                 if key not in seen_extras:
                     seen_extras.add(key)
                     unique_extras.append(extra)
@@ -564,34 +564,37 @@ class EstimateDocxGenerator:
             # Sort extras chronologically
             unique_extras.sort(key=lambda ex: self._parse_date_header(ex.date_header))
 
-            printed_dates_extras = set()
+            # Group extras by date, then by type (rental vs sales)
+            extras_by_date = {}
             for extra in unique_extras:
                 norm_date = (extra.date_header or "").strip()
-                if norm_date not in printed_dates_extras:
-                    printed_dates_extras.add(norm_date)
-                    add_p(extra.date_header, bold=True, space_after=Pt(0))
-                    add_hr()
-                
-                if extra.is_rental:
-                    add_p("Rentals", bold=True, space_before=Pt(6))
-                
-                if extra.is_sales:
-                    add_p("Sales", bold=True, space_before=Pt(6))
+                if norm_date not in extras_by_date:
+                    extras_by_date[norm_date] = {"rentals": [], "sales": []}
+                group_key = "rentals" if extra.rental else "sales"
+                extras_by_date[norm_date][group_key].append(extra)
 
-                p = add_p(space_after=Pt(2))
-                p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
-                # Determine name based on flags
-                display_name = extra.name
-                if not extra.provide_by_client:
-                    if extra.is_rental: display_name = extra.name_rental
-                    elif extra.is_sales: display_name = extra.name_sales
+            for norm_date, groups in extras_by_date.items():
+                date_extra = (groups["rentals"] or groups["sales"])[0]
+                add_p(date_extra.date_header, bold=True, space_after=Pt(0))
+                add_hr()
 
-                if extra.provide_by_client:
-                    txt = f"{display_name}\tProvide by the client"
-                else:
-                    txt = f"{display_name}\t{self._format_currency(extra.total)}"
-                p_extra = p.add_run(txt)
-                self._set_run_font(p_extra, bold=True)
+                for section_title, extras_list in (("Rentals", groups["rentals"]), ("Sales", groups["sales"])):
+                    if not extras_list:
+                        continue
+
+                    add_p(section_title, bold=True, space_before=Pt(6))
+
+                    for extra in extras_list:
+                        p = add_p(space_after=Pt(2))
+                        p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
+
+                        display_name = (extra.name or "").strip()
+                        if extra.provide_by_client:
+                            txt = f"{display_name}\tProvide by the client"
+                        else:
+                            txt = f"{display_name}\t{self._format_currency(extra.price)}"
+                        p_extra = p.add_run(txt)
+                        self._set_run_font(p_extra, bold=True)
 
         # 4. Final Summary
         add_p("Cost of Balance", bold=True, size=Pt(10), color=self.primary_color, space_before=Pt(10))
@@ -610,9 +613,9 @@ class EstimateDocxGenerator:
         if request.extras_events:
             for ex in unique_extras:
                 if not ex.provide_by_client:
-                    val = self._parse_price(ex.total)
-                    if ex.is_sales: real_extras_sales_total += val
-                    if ex.is_rental: real_extras_rentals_total += val
+                    val = self._parse_price(ex.price)
+                    if ex.rental: real_extras_rentals_total += val
+                    else: real_extras_sales_total += val
 
         real_gratuity = self._parse_price(fin.gratuity)
         real_discount = self._parse_price(fin.discount)
