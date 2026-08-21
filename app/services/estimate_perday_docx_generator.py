@@ -66,6 +66,14 @@ class EstimatePerDayDocxGenerator:
             return f"-$ {s_formatted}"
         return f"$ {s_formatted}"
 
+    def _extra_line_total(self, extra):
+        """Total for an extra line = price * quantity (qty defaults to 1)."""
+        price = self._parse_price(extra.price)
+        qty = self._parse_price(extra.qty)
+        if qty <= 0:
+            qty = 1.0
+        return price * qty
+
     def _parse_price(self, val):
         if not val:
             return 0.0
@@ -533,8 +541,9 @@ class EstimatePerDayDocxGenerator:
                 norm_rental = (extra.name_rental or "").strip()
                 norm_sales = (extra.name_sales or "").strip()
                 norm_price = self._parse_price(extra.price)
+                norm_qty = self._parse_price(extra.qty)
                 
-                key = (norm_date, extra.rental, norm_name, norm_rental, norm_sales, norm_price, extra.provide_by_client)
+                key = (norm_date, extra.rental, norm_name, norm_rental, norm_sales, norm_price, norm_qty, extra.provide_by_client)
                 if key not in seen_extras:
                     seen_extras.add(key)
                     unique_extras.append(extra)
@@ -570,7 +579,7 @@ class EstimatePerDayDocxGenerator:
                         if extra.provide_by_client:
                             txt = f"{display_name}\tProvide by the client"
                         else:
-                            txt = f"{display_name}\t{self._format_currency(extra.price)}"
+                            txt = f"{display_name}\t{self._format_currency(self._extra_line_total(extra))}"
                         p_extra = p.add_run(txt)
                         self._set_run_font(p_extra, bold=True)
 
@@ -592,7 +601,7 @@ class EstimatePerDayDocxGenerator:
         if request.extras_events:
             for ex in unique_extras:
                 if not ex.provide_by_client:
-                    val = self._parse_price(ex.price)
+                    val = self._extra_line_total(ex)
                     if ex.rental: real_extras_rentals_total += val
                     else: real_extras_sales_total += val
 
