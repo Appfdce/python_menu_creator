@@ -42,6 +42,20 @@ def format_time_range(val: str) -> str:
     res = re.sub(r'([0-9Mm])\s*to\s*([0-9AaPp])', r'\1 to \2', str(val), flags=re.IGNORECASE)
     return ' '.join(res.split())
 
+def coerce_bool(v):
+    """Coerce AppSheet boolean values (which may arrive as empty strings or
+    strings like 'true'/'false'/'1'/'0') into real booleans."""
+    if isinstance(v, bool):
+        return v
+    if v is None:
+        return False
+    s = str(v).strip().lower()
+    if s in ("", "0", "false", "no", "n", "f", "none"):
+        return False
+    if s in ("1", "true", "yes", "y", "t"):
+        return True
+    return False
+
 
 class BaseSchema(BaseModel):
     model_config = ConfigDict(coerce_numbers_to_str=True)
@@ -168,6 +182,11 @@ class Meal(BaseSchema):
     def format_times(cls, v):
         return format_time_range(v)
 
+    @field_validator('show_date_header', 'provide_by_client', 'show_date_header_2', 'show_guest_header', mode='before')
+    @classmethod
+    def coerce_bools(cls, v):
+        return coerce_bool(v)
+
 class LaborService(BaseSchema):
     show_date_header: bool = False
     order: int = 0
@@ -182,6 +201,11 @@ class LaborService(BaseSchema):
     def format_date_header(cls, v):
         return format_to_us_date(v)
 
+    @field_validator('show_date_header', 'show_hours_header', mode='before')
+    @classmethod
+    def coerce_bools(cls, v):
+        return coerce_bool(v)
+
 class ExtrasEvent(BaseSchema):
     show_date_header: bool = False
     date_header: str = ""
@@ -195,6 +219,11 @@ class ExtrasEvent(BaseSchema):
     name_sales: str = ""
     total: str = ""
     provide_by_client: bool = False
+
+    @field_validator('show_date_header', 'is_rental', 'is_sales', 'rental', 'provide_by_client', mode='before')
+    @classmethod
+    def coerce_bools(cls, v):
+        return coerce_bool(v)
 
     @field_validator('date_header', mode='after')
     @classmethod

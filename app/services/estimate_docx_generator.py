@@ -578,14 +578,27 @@ class EstimateDocxGenerator:
             for extra in unique_extras:
                 norm_date = (extra.date_header or "").strip()
                 if norm_date not in extras_by_date:
-                    extras_by_date[norm_date] = {"rentals": [], "sales": []}
-                group_key = "rentals" if extra.rental else "sales"
+                    extras_by_date[norm_date] = {"rentals": [], "sales": [], "provided": []}
+                if extra.provide_by_client:
+                    group_key = "provided"
+                else:
+                    group_key = "rentals" if extra.rental else "sales"
                 extras_by_date[norm_date][group_key].append(extra)
 
             for norm_date, groups in extras_by_date.items():
-                date_extra = (groups["rentals"] or groups["sales"])[0]
+                date_extra = (groups["rentals"] or groups["sales"] or groups["provided"])[0]
                 add_p(date_extra.date_header, bold=True, space_after=Pt(0))
                 add_hr()
+
+                # Provided-by-client extras render directly under the date header,
+                # without a Rentals/Sales section title (they are neither).
+                for extra in groups["provided"]:
+                    p = add_p(space_after=Pt(2))
+                    p.paragraph_format.tab_stops.add_tab_stop(Cm(16.5), WD_TAB_ALIGNMENT.RIGHT)
+                    display_name = (extra.name or "").strip()
+                    txt = f"{display_name}\tProvide by the client"
+                    p_extra = p.add_run(txt)
+                    self._set_run_font(p_extra, bold=True)
 
                 for section_title, extras_list in (("Rentals", groups["rentals"]), ("Sales", groups["sales"])):
                     if not extras_list:
