@@ -55,8 +55,8 @@ def test_extras_grouped_by_date_and_type(generator_cls):
     text = _gen_text(generator_cls)
 
     # Both dates appear as headers
-    assert "Tuesday, October 27th 2026" in text
-    assert "Wednesday, October 28th 2026" in text
+    assert "Tuesday, October 27th, 2026" in text
+    assert "Wednesday, October 28th, 2026" in text
 
     # Each extra line shows name + individual price x qty
     assert "Tent\t$ 1,000.00" in text

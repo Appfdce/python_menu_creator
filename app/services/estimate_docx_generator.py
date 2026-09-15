@@ -139,7 +139,10 @@ class EstimateDocxGenerator:
         formats = [
             "%B, %A %d %Y", # June, Wednesday 17 2026
             "%A, %B %d %Y", # Wednesday, June 17 2026
+            "%A, %B %d, %Y", # Wednesday, June 17, 2026
+            "%B, %A %d, %Y", # June, Wednesday 17, 2026
             "%B %d %Y",
+            "%B %d, %Y",
             "%m/%d/%Y",
             "%d/%m/%Y",
             "%Y-%m-%d"

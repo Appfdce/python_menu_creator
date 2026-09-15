@@ -15,6 +15,21 @@ _WEEKDAY_NAMES = [
     "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
 ]
 
+# Recognized month names by language (input) mapped to month number, so dates
+# coming from AppSheet in Spanish/Portuguese can still be rendered in English.
+_MONTH_INPUT_NAMES = {
+    # English
+    "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+    "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12,
+    # Spanish
+    "enero": 1, "febrero": 2, "marzo": 3, "abril": 4, "mayo": 5, "junio": 6,
+    "julio": 7, "agosto": 8, "septiembre": 9, "setiembre": 9, "octubre": 10,
+    "noviembre": 11, "diciembre": 12,
+    # Portuguese
+    "janeiro": 1, "fevereiro": 2, "março": 3, "marco": 3, "maio": 5, "junho": 6,
+    "julho": 7, "setembro": 9, "outubro": 10, "novembro": 11, "dezembro": 12,
+}
+
 
 def _ordinal(day: int) -> str:
     """Returns the English ordinal for a day, e.g. 1 -> '1st', 24 -> '24th'."""
@@ -42,12 +57,12 @@ def _extract_year(val) -> Optional[int]:
 def _canonical_long_date(dt: datetime) -> str:
     weekday = _WEEKDAY_NAMES[dt.weekday()]
     month = _MONTH_NAMES[dt.month - 1]
-    return f"{weekday}, {month} {_ordinal(dt.day)} {dt.year}"
+    return f"{weekday}, {month} {_ordinal(dt.day)}, {dt.year}"
 
 
 def to_long_date(val, fallback_year: Optional[int] = None) -> str:
     """Normalizes a date string to the canonical long format
-    'Weekday, Month Dayth Year' (e.g. 'Thursday, September 24th 2026').
+    'Weekday, Month Dayth, Year' (e.g. 'Thursday, September 24th, 2026').
 
     Handles the multiple long formats coming from AppSheet (any token order,
     with or without ordinal suffix, with or without year) as well as US
@@ -78,9 +93,9 @@ def to_long_date(val, fallback_year: Optional[int] = None) -> str:
     # Long formats: locate month name, day and (optional) year in any order
     lower = s.lower()
     month = None
-    for index, name in enumerate(_MONTH_NAMES):
-        if re.search(r"\b" + name.lower() + r"\b", lower):
-            month = index + 1
+    for name, number in _MONTH_INPUT_NAMES.items():
+        if re.search(r"\b" + re.escape(name) + r"\b", lower):
+            month = number
             break
     if month is None:
         return s
@@ -128,12 +143,24 @@ def format_to_us_date(val: str) -> str:
     return val
 
 def format_time_range(val: str) -> str:
-    """Injects correct spaces around 'to' in meal time ranges."""
+    """Normalizes meal time ranges:
+    - adds the missing spaces around 'to' when it is glued to an hour
+      (e.g. '2:30 p. m. to2:45 p. m.' -> '2:30 PM to 2:45 PM')
+    - normalizes AM/PM markers written as 'a. m.', 'p.m.', 'pm', etc.
+    """
     if not val:
         return val
-    # Replace "to" with " to " only if it is preceded by a digit or M/m 
-    # and followed by a digit or A/a/P/p to avoid modifying other words.
-    res = re.sub(r'([0-9Mm])\s*to\s*([0-9AaPp])', r'\1 to \2', str(val), flags=re.IGNORECASE)
+
+    res = str(val)
+    # Normalize AM/PM markers: 'p. m.', 'p.m.', 'pm', 'P.M.' -> 'PM'
+    res = re.sub(r'(?<![a-z])([ap])\s*\.?\s*m(?![a-z])\.?', lambda m: m.group(1).upper() + 'M', res, flags=re.IGNORECASE)
+    # Ensure a space after 'to' when followed by a digit, and before 'to'
+    # when preceded by a digit or an AM/PM marker (avoids touching words).
+    res = re.sub(r'(to)(?=\d)', r'\1 ', res, flags=re.IGNORECASE)
+    res = re.sub(r'(?<=[0-9Mm])(to)', r' \1', res, flags=re.IGNORECASE)
+    # Separate the marker from the hour when glued: '8:00AM' -> '8:00 AM'
+    res = re.sub(r'(?<=\d)(AM|PM)\b', r' \1', res)
+
     return ' '.join(res.split())
 
 def coerce_bool(v):

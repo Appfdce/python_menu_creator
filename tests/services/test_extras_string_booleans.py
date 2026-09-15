@@ -70,7 +70,7 @@ def test_provided_by_client_not_classified_as_rental_or_sales(generator_cls):
 
     # The provided-by-client item must appear directly under the date header
     # (before the "Rentals" section title) and not be nested under a section.
-    date_idx = next(i for i, p in enumerate(paras) if "Tuesday, October 27th 2026" in p)
+    date_idx = next(i for i, p in enumerate(paras) if "Tuesday, October 27th, 2026" in p)
     rentals_idx = paras.index("Rentals")
     stage_idx = next(i for i, p in enumerate(paras) if "Stage\tProvide by the client" in p)
     assert date_idx < stage_idx < rentals_idx

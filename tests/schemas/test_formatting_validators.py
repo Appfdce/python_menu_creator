@@ -41,10 +41,32 @@ def test_other_date_format_unchanged():
 def test_to_long_date_normalization():
     from app.schemas.estimate_total import to_long_date
 
-    assert to_long_date("Monday, June, 15th 2026") == "Monday, June 15th 2026"
-    assert to_long_date("August, Tuesday 5 2025") == "Tuesday, August 5th 2025"
-    assert to_long_date("Thursday, September 24th, 2026") == "Thursday, September 24th 2026"
-    assert to_long_date("Monday, June 15 2026") == "Monday, June 15th 2026"
+    assert to_long_date("Monday, June, 15th 2026") == "Monday, June 15th, 2026"
+    assert to_long_date("August, Tuesday 5 2025") == "Tuesday, August 5th, 2025"
+    assert to_long_date("Thursday, September 24th, 2026") == "Thursday, September 24th, 2026"
+    assert to_long_date("Monday, June 15 2026") == "Monday, June 15th, 2026"
+
+
+def test_to_long_date_spanish_and_portuguese_to_english():
+    from app.schemas.estimate_total import to_long_date
+
+    # Spanish input must always be rendered in English
+    assert to_long_date("martes, septiembre, 8th 2026") == "Tuesday, September 8th, 2026"
+    assert to_long_date("septiembre, martes 8 2026") == "Tuesday, September 8th, 2026"
+    assert to_long_date("lunes, junio 15 2026") == "Monday, June 15th, 2026"
+    assert to_long_date("terça-feira, setembro 8 2026") == "Tuesday, September 8th, 2026"
+
+
+def test_time_range_spacing_and_ampm():
+    m = Meal(time_range="2:30 p. m. to2:45 p. m.")
+    assert m.time_range == "2:30 PM to 2:45 PM"
+
+    m2 = Meal(time_range="8:00AMto9:00AM")
+    assert m2.time_range == "8:00 AM to 9:00 AM"
+
+    # Words must not be altered
+    m3 = Meal(time_range="Tomato to potato")
+    assert m3.time_range == "Tomato to potato"
 
 
 def test_request_normalizes_all_date_headers_consistently():
@@ -55,12 +77,12 @@ def test_request_normalizes_all_date_headers_consistently():
         client_representative={"name": "R"},
         event={"date_formatted": "24/09/2026", "end_date_formatted": "24/09/2026"},
         meals=[{"date_header": "Thursday, September 24th, 2026"}],
-        labor_services=[{"date_header": "September, Thursday 24 2026"}],
+        labor_services=[{"date_header": "septiembre, jueves 24 2026"}],
         extras_events=[{"date_header": "Thursday, September, 24th 2026"}],
         financials={},
     )
 
-    expected = "Thursday, September 24th 2026"
+    expected = "Thursday, September 24th, 2026"
     assert req.meals[0].date_header == expected
     assert req.labor_services[0].date_header == expected
     assert req.extras_events[0].date_header == expected
@@ -77,4 +99,4 @@ def test_request_date_header_without_year_uses_event_year():
         financials={},
     )
 
-    assert req.meals[0].date_header == "Thursday, September 24th 2026"
+    assert req.meals[0].date_header == "Thursday, September 24th, 2026"

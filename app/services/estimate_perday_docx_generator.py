@@ -128,7 +128,10 @@ class EstimatePerDayDocxGenerator:
         formats = [
             "%B, %A %d %Y", 
             "%A, %B %d %Y", 
+            "%A, %B %d, %Y",
+            "%B, %A %d, %Y",
             "%B %d %Y",
+            "%B %d, %Y",
             "%m/%d/%Y",
             "%d/%m/%Y",
             "%Y-%m-%d"
