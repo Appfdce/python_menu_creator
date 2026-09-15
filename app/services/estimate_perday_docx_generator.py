@@ -122,6 +122,8 @@ class EstimatePerDayDocxGenerator:
         if not val:
             return datetime.min
         clean = str(val).strip()
+        # Remove English ordinal suffixes (e.g. 24th -> 24) before parsing
+        clean = re.sub(r"(\d+)(?:st|nd|rd|th)\b", r"\1", clean, flags=re.IGNORECASE)
         
         formats = [
             "%B, %A %d %Y", 
@@ -304,7 +306,6 @@ class EstimatePerDayDocxGenerator:
 
         # --- MENU SECTION ---
         add_p("MENUS", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
-        add_p(request.event.date_formatted, space_after=Pt(0))
 
         if request.event.dietary_restrictions:
             add_p("Dietary Restrictions", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
@@ -399,7 +400,6 @@ class EstimatePerDayDocxGenerator:
         # --- FINANCIAL SECTION ---
         add_p(space_before=Pt(10))
         add_p("PROPOSAL OF SERVICES", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0), space_before=Pt(10))
-        add_p(request.event.end_date_formatted, space_after=Pt(0)) 
 
         # 1. Food Service
         add_p("Food Service", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0), space_before=Pt(10))

@@ -1,10 +1,104 @@
 import re
+from datetime import datetime
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from typing import List, Optional
 
 INVALID_XML_CHARS = re.compile(
     r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x84\x86-\x9f\ud800-\udfff\ufdd0-\ufddf\ufffe\uffff]"
 )
+
+_MONTH_NAMES = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+]
+_WEEKDAY_NAMES = [
+    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+]
+
+
+def _ordinal(day: int) -> str:
+    """Returns the English ordinal for a day, e.g. 1 -> '1st', 24 -> '24th'."""
+    if 10 <= day % 100 <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+    return f"{day}{suffix}"
+
+
+def _extract_year(val) -> Optional[int]:
+    """Best-effort extraction of a 4-digit year (or 2-digit numeric year) from a date string."""
+    if not val:
+        return None
+    s = str(val)
+    m = re.search(r"(?<!\d)(\d{4})(?!\d)", s)
+    if m:
+        return int(m.group(1))
+    m = re.search(r"/(\d{2})(?!\d)", s)
+    if m:
+        return 2000 + int(m.group(1))
+    return None
+
+
+def _canonical_long_date(dt: datetime) -> str:
+    weekday = _WEEKDAY_NAMES[dt.weekday()]
+    month = _MONTH_NAMES[dt.month - 1]
+    return f"{weekday}, {month} {_ordinal(dt.day)} {dt.year}"
+
+
+def to_long_date(val, fallback_year: Optional[int] = None) -> str:
+    """Normalizes a date string to the canonical long format
+    'Weekday, Month Dayth Year' (e.g. 'Thursday, September 24th 2026').
+
+    Handles the multiple long formats coming from AppSheet (any token order,
+    with or without ordinal suffix, with or without year) as well as US
+    numeric dates (MM/DD/YYYY or MM/DD/YY). Returns the input unchanged when
+    it cannot be parsed reliably.
+    """
+    if not val:
+        return val
+
+    s = " ".join(str(val).split())
+
+    # Numeric US formats (already normalized by format_to_us_date)
+    m = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{4})$", s)
+    if m:
+        month, day, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        try:
+            return _canonical_long_date(datetime(year, month, day))
+        except ValueError:
+            return s
+    m = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{2})$", s)
+    if m:
+        month, day, year = int(m.group(1)), int(m.group(2)), 2000 + int(m.group(3))
+        try:
+            return _canonical_long_date(datetime(year, month, day))
+        except ValueError:
+            return s
+
+    # Long formats: locate month name, day and (optional) year in any order
+    lower = s.lower()
+    month = None
+    for index, name in enumerate(_MONTH_NAMES):
+        if re.search(r"\b" + name.lower() + r"\b", lower):
+            month = index + 1
+            break
+    if month is None:
+        return s
+
+    day_match = re.search(r"(?<!\d)(\d{1,2})(?:st|nd|rd|th)?(?!\d)", s)
+    if not day_match:
+        return s
+    day = int(day_match.group(1))
+
+    year = _extract_year(s) or fallback_year
+    if not year:
+        return s
+
+    try:
+        return _canonical_long_date(datetime(year, month, day))
+    except ValueError:
+        return s
+
 
 def sanitize_xml_text(value):
     """Removes characters that are invalid in XML 1.0 documents (e.g. NULL bytes
@@ -256,3 +350,22 @@ class EstimateTotalRequest(BaseSchema):
     labor_services: List[LaborService] = []
     extras_events: List[ExtrasEvent] = []
     financials: Financials
+
+    @model_validator(mode='after')
+    def _normalize_long_dates(self):
+        # Long date headers must be consistent across Food, Labor and Extras.
+        # The event year is used as fallback for headers that omit the year.
+        fallback_year = (
+            _extract_year(self.event.date_formatted)
+            or _extract_year(self.event.end_date_formatted)
+        )
+        for meal in self.meals:
+            if meal.date_header:
+                meal.date_header = to_long_date(meal.date_header, fallback_year)
+        for labor in self.labor_services:
+            if labor.date_header:
+                labor.date_header = to_long_date(labor.date_header, fallback_year)
+        for extra in self.extras_events:
+            if extra.date_header:
+                extra.date_header = to_long_date(extra.date_header, fallback_year)
+        return self

@@ -36,3 +36,45 @@ def test_other_date_format_unchanged():
     # Natural language dates should not be broken
     m = Meal(date_header="Monday, June, 15th 2026")
     assert m.date_header == "Monday, June, 15th 2026"
+
+
+def test_to_long_date_normalization():
+    from app.schemas.estimate_total import to_long_date
+
+    assert to_long_date("Monday, June, 15th 2026") == "Monday, June 15th 2026"
+    assert to_long_date("August, Tuesday 5 2025") == "Tuesday, August 5th 2025"
+    assert to_long_date("Thursday, September 24th, 2026") == "Thursday, September 24th 2026"
+    assert to_long_date("Monday, June 15 2026") == "Monday, June 15th 2026"
+
+
+def test_request_normalizes_all_date_headers_consistently():
+    from app.schemas.estimate_total import EstimateTotalRequest
+
+    req = EstimateTotalRequest(
+        client={"name": "C"},
+        client_representative={"name": "R"},
+        event={"date_formatted": "24/09/2026", "end_date_formatted": "24/09/2026"},
+        meals=[{"date_header": "Thursday, September 24th, 2026"}],
+        labor_services=[{"date_header": "September, Thursday 24 2026"}],
+        extras_events=[{"date_header": "Thursday, September, 24th 2026"}],
+        financials={},
+    )
+
+    expected = "Thursday, September 24th 2026"
+    assert req.meals[0].date_header == expected
+    assert req.labor_services[0].date_header == expected
+    assert req.extras_events[0].date_header == expected
+
+
+def test_request_date_header_without_year_uses_event_year():
+    from app.schemas.estimate_total import EstimateTotalRequest
+
+    req = EstimateTotalRequest(
+        client={"name": "C"},
+        client_representative={"name": "R"},
+        event={"date_formatted": "24/09/2026"},
+        meals=[{"date_header": "Thursday, September 24th"}],
+        financials={},
+    )
+
+    assert req.meals[0].date_header == "Thursday, September 24th 2026"

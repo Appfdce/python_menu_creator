@@ -131,6 +131,8 @@ class EstimateDocxGenerator:
         if not val:
             return datetime.min
         clean = str(val).strip()
+        # Remove English ordinal suffixes (e.g. 24th -> 24) before parsing
+        clean = re.sub(r"(\d+)(?:st|nd|rd|th)\b", r"\1", clean, flags=re.IGNORECASE)
         
         # Common formats used in AppSheet / English locale dates
         # e.g., "June, Wednesday 17 2026" -> "%B, %A %d %Y"
@@ -318,7 +320,6 @@ class EstimateDocxGenerator:
 
         # --- MENU SECTION ---
         add_p("MENUS", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
-        add_p(request.event.date_formatted, space_after=Pt(0))
 
         if request.event.dietary_restrictions:
             add_p("Dietary Restrictions", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
@@ -418,8 +419,6 @@ class EstimateDocxGenerator:
         # Force a page break before financials if needed, or just a big spacer
         add_p(space_before=Pt(10))
         add_p("PROPOSAL OF SERVICES", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0), space_before=Pt(10))
-        add_p(request.event.end_date_formatted, space_after=Pt(0)) # HTML uses End Event here
-        #add_p(size=Pt(8))
 
         # 1. Food Service
         add_p("Food Service", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0), space_before=Pt(10))

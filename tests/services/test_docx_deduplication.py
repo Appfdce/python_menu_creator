@@ -130,14 +130,14 @@ def test_labor_date_ordering_and_headers():
     full_text = "\n".join([p.text for p in doc.paragraphs])
     
     # Assert headers for all three distinct dates are present in the output
-    assert "June, Monday 15 2026" in full_text, f"Missing June 15 header! Text:\n{full_text}"
-    assert "June, Tuesday 16 2026" in full_text, f"Missing June 16 header! Text:\n{full_text}"
-    assert "June, Wednesday 17 2026" in full_text, f"Missing June 17 header! Text:\n{full_text}"
+    assert "Monday, June 15th 2026" in full_text, f"Missing June 15 header! Text:\n{full_text}"
+    assert "Tuesday, June 16th 2026" in full_text, f"Missing June 16 header! Text:\n{full_text}"
+    assert "Wednesday, June 17th 2026" in full_text, f"Missing June 17 header! Text:\n{full_text}"
     
     # Assert chronological order: June 15 should appear before June 16, which is before June 17
-    idx_15 = full_text.index("June, Monday 15 2026")
-    idx_16 = full_text.index("June, Tuesday 16 2026")
-    idx_17 = full_text.index("June, Wednesday 17 2026")
+    idx_15 = full_text.index("Monday, June 15th 2026")
+    idx_16 = full_text.index("Tuesday, June 16th 2026")
+    idx_17 = full_text.index("Wednesday, June 17th 2026")
     
     assert idx_15 < idx_16, "June 15 should appear BEFORE June 16 in the document!"
     assert idx_16 < idx_17, "June 16 should appear BEFORE June 17 in the document!"
