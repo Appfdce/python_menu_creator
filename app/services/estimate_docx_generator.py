@@ -73,6 +73,50 @@ class EstimateDocxGenerator:
             return f"-$ {s_formatted}"
         return f"$ {s_formatted}"
 
+    def _format_number(self, val):
+        """Formats a numeric value, dropping trailing '.00' decimals when integer.
+
+        Non-integer values are normalized to a US-style decimal point
+        (e.g. '5,00' -> '5', 5.0 -> '5', '5,5' -> '5.5', '8,875' -> '8.875').
+        """
+        if val is None:
+            return ""
+        if isinstance(val, (int, float)):
+            if float(val).is_integer():
+                return str(int(val))
+            return f"{float(val):.6f}".rstrip("0").rstrip(".")
+
+        s = str(val).strip()
+        if not s:
+            return ""
+
+        core = s.replace("%", "").replace(" ", "").strip()
+        if "," in core and "." not in core:
+            core = core.replace(",", ".")
+
+        try:
+            num = float(core)
+        except (ValueError, TypeError):
+            return s
+
+        if num.is_integer():
+            return str(int(num))
+        return f"{num:.6f}".rstrip("0").rstrip(".")
+
+    def _format_rate(self, val):
+        """Formats a percentage rate, dropping trailing '.00' decimals.
+
+        The '%' sign is preserved and rendered without a leading space
+        (e.g. '10,00 %' -> '10%', '18%' -> '18%', '8,875%' -> '8.875%').
+        """
+        if val is None or not str(val).strip():
+            return ""
+        s = str(val).strip()
+        has_pct = "%" in s
+        core = s.replace("%", "").strip()
+        formatted = self._format_number(core)
+        return f"{formatted}%" if has_pct else formatted
+
     def _extra_line_total(self, extra):
         """Total for an extra line = price * quantity (qty defaults to 1)."""
         price = self._parse_price(extra.price)
@@ -170,9 +214,9 @@ class EstimateDocxGenerator:
             "{{EVENT_START}}": request.event.date_formatted,
             "{{EVENT_END}}": request.event.end_date_formatted,
             "{{EVENT_GUESTS}}": str(request.event.guests),
-            "{{SERVICE_CHARGE_RATE}}": request.financials.service_charge_rate,
+            "{{SERVICE_CHARGE_RATE}}": self._format_rate(request.financials.service_charge_rate),
             "{{TAX_NAME}}": request.financials.tax_name,
-            "{{TAX_RATE}}": request.financials.tax_rate,
+            "{{TAX_RATE}}": self._format_rate(request.financials.tax_rate),
         }
 
         def process_paragraphs(paragraphs):
@@ -534,7 +578,7 @@ class EstimateDocxGenerator:
                 r_header_prefix = p_desc.add_run("Staff suggested based on ")
                 self._set_run_font(r_header_prefix, italic=True)
                 
-                r_hours = p_desc.add_run(f"{group['hours']}")
+                r_hours = p_desc.add_run(self._format_number(group['hours']))
                 self._set_run_font(r_hours, italic=True, bold=True)
                 
                 r_header_suffix = p_desc.add_run(" hours of labor. ")
@@ -676,10 +720,10 @@ class EstimateDocxGenerator:
             ("Discount", -abs(real_discount), False),
             ("Donation", -abs(real_donation), False),
             # ("Event Subtotal (Pre-Tax)", subtotal_1, True, True), # Removed from view per request
-            (f"{fin.tax_rate} {fin.tax_name}", real_tax, True),
+            (f"{self._format_rate(fin.tax_rate)} {fin.tax_name}", real_tax, True),
             ("Subtotal after Taxes", subtotal_2, True, True),
             ("Extras Services (Rentals)", real_extras_rentals_total, True),
-            (f"{fin.service_charge_rate} Service Charge", real_service_charge, True),
+            (f"{self._format_rate(fin.service_charge_rate)} Service Charge", real_service_charge, True),
             ("Total Estimated Amount", subtotal_4, True, True),
             ("Credit Card Fee", real_cc_fee, False),
         ]
