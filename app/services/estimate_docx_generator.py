@@ -30,11 +30,19 @@ class EstimateDocxGenerator:
 
     def _resolve_template_path(self, proposal_type):
         """Selects the template based on the proposal type. Falls back to the
-        legacy template when the type is empty or unknown."""
+        legacy template when the type is empty, unknown, or its file is missing."""
         if self.template_path:
             return self.template_path
         key = (proposal_type or "").strip().lower()
-        return TEMPLATE_BY_PROPOSAL_TYPE.get(key, TEMPLATE_PATH)
+        candidate = TEMPLATE_BY_PROPOSAL_TYPE.get(key)
+        if candidate and os.path.exists(candidate):
+            return candidate
+        if candidate:
+            logger.warning(
+                "Template for proposal_type '%s' not found at %s. Falling back to legacy template.",
+                key, candidate,
+            )
+        return TEMPLATE_PATH
 
     def _set_run_font(self, run, size_pt=Pt(10), bold=None, italic=None, color_rgb=None, underline=None):
         """Helper to consistently set font properties in a run."""

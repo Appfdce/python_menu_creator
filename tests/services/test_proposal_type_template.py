@@ -101,6 +101,23 @@ def test_empty_proposal_type_falls_back_to_legacy_template(generator_cls):
     assert generator.generate_docx(req).getvalue()
 
 
+@pytest.mark.parametrize("generator_cls", GENERATORS.values(), ids=GENERATORS.keys())
+def test_missing_variant_template_falls_back_to_legacy(generator_cls, monkeypatch):
+    import app.services.estimate_docx_generator as standard_module
+    import app.services.estimate_perday_docx_generator as perday_module
+
+    module = standard_module if generator_cls is EstimateDocxGenerator else perday_module
+    monkeypatch.setitem(
+        module.TEMPLATE_BY_PROPOSAL_TYPE, "anual", "/tmp/does_not_exist_anual.docx"
+    )
+
+    req = EstimateTotalRequest(**_payload_with("Anual"))
+    generator = generator_cls()
+    # Missing variant file must degrade to the legacy template, not crash.
+    assert generator._resolve_template_path(req.event.proposal_type).endswith("_template.docx")
+    assert generator.generate_docx(req).getvalue()
+
+
 def test_proposal_type_normalization():
     assert EstimateTotalRequest(**_payload_with("Anual")).event.proposal_type == "anual"
     assert EstimateTotalRequest(**_payload_with("Annual")).event.proposal_type == "anual"
