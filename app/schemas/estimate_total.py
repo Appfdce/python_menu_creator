@@ -206,6 +206,7 @@ class EventInfo(BaseSchema):
     end_date_formatted: str = ""
     guests: int = 0
     dietary_restrictions: str = ""
+    proposal_type: str = ""
 
     @field_validator('guests', mode='before')
     @classmethod
@@ -218,6 +219,21 @@ class EventInfo(BaseSchema):
     @classmethod
     def format_dates(cls, v):
         return format_to_us_date(v)
+
+    @field_validator('proposal_type', mode='before')
+    @classmethod
+    def normalize_proposal_type(cls, v):
+        """Canonicalizes the document type sent from AppSheet.
+        Accepts 'Anual'/'Annual' -> 'anual' and 'Particular' -> 'particular'.
+        Any other value (including empty) falls back to the legacy template."""
+        if v is None:
+            return ""
+        s = str(v).strip().lower()
+        if s in ("anual", "annual"):
+            return "anual"
+        if s == "particular":
+            return "particular"
+        return ""
 
 class MenuItem(BaseSchema):
     name: str = ""

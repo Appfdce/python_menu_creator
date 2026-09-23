@@ -12,15 +12,29 @@ from app.schemas.estimate_total import EstimateTotalRequest
 
 logger = logging.getLogger(__name__)
 
-TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "estimate_template.docx")
+TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "..", "..")
+TEMPLATE_PATH = os.path.join(TEMPLATE_DIR, "estimate_template.docx")
+
+TEMPLATE_BY_PROPOSAL_TYPE = {
+    "anual": os.path.join(TEMPLATE_DIR, "estimate_template_anual.docx"),
+    "particular": os.path.join(TEMPLATE_DIR, "estimate_template_particular.docx"),
+}
 
 class EstimateDocxGenerator:
-    def __init__(self, template_path=TEMPLATE_PATH):
+    def __init__(self, template_path=None):
         self.template_path = template_path
         self.font_name = "Open Sans"
         self.primary_color = 0x612d4b  # Wine color from HTML
         self.text_color = 0x333333     # Main text color
         self.desc_color = 0x555555     # Description color
+
+    def _resolve_template_path(self, proposal_type):
+        """Selects the template based on the proposal type. Falls back to the
+        legacy template when the type is empty or unknown."""
+        if self.template_path:
+            return self.template_path
+        key = (proposal_type or "").strip().lower()
+        return TEMPLATE_BY_PROPOSAL_TYPE.get(key, TEMPLATE_PATH)
 
     def _set_run_font(self, run, size_pt=Pt(10), bold=None, italic=None, color_rgb=None, underline=None):
         """Helper to consistently set font properties in a run."""
@@ -273,10 +287,11 @@ class EstimateDocxGenerator:
                                     t.text = t.text.replace(key, str(value or ""))
 
     def generate_docx(self, request: EstimateTotalRequest) -> BytesIO:
-        if not os.path.exists(self.template_path):
-            raise FileNotFoundError(f"Template not found at {self.template_path}")
+        template_path = self._resolve_template_path(request.event.proposal_type)
+        if not os.path.exists(template_path):
+            raise FileNotFoundError(f"Template not found at {template_path}")
 
-        doc = Document(self.template_path)
+        doc = Document(template_path)
         self._replace_placeholders(doc, request)
 
         # De-duplicate meals to avoid repetitions (common in some data sources)
