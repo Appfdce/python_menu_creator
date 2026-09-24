@@ -38,13 +38,13 @@ base_payload = {
 }
 
 GENERATORS = {
-    "standard": EstimateDocxGenerator,
+    "estimate": EstimateDocxGenerator,
     "perday": EstimatePerDayDocxGenerator,
 }
 
 # Text that only exists in the last page of each variant.
-ANUAL_MARKERS = ["Governing Terms", "Master Caterer Agreement"]
-PARTICULAR_MARKERS = ["Events Policies", "Deposit"]
+ANNUAL_MARKERS = ["Governing Terms", "Master Caterer Agreement"]
+STANDARD_MARKERS = ["Events Policies", "Deposit"]
 
 
 def _all_text(docx_stream):
@@ -70,25 +70,25 @@ def _payload_with(proposal_type):
 
 
 @pytest.mark.parametrize("generator_cls", GENERATORS.values(), ids=GENERATORS.keys())
-def test_anual_proposal_type_uses_anual_template(generator_cls):
-    req = EstimateTotalRequest(**_payload_with("Anual"))
+def test_annual_proposal_type_uses_annual_template(generator_cls):
+    req = EstimateTotalRequest(**_payload_with("Annual"))
     text = _all_text(generator_cls().generate_docx(req))
 
-    for marker in ANUAL_MARKERS:
-        assert marker in text, f"Missing anual marker '{marker}'"
-    for marker in PARTICULAR_MARKERS:
-        assert marker not in text, f"Unexpected particular marker '{marker}'"
+    for marker in ANNUAL_MARKERS:
+        assert marker in text, f"Missing annual marker '{marker}'"
+    for marker in STANDARD_MARKERS:
+        assert marker not in text, f"Unexpected standard marker '{marker}'"
 
 
 @pytest.mark.parametrize("generator_cls", GENERATORS.values(), ids=GENERATORS.keys())
-def test_particular_proposal_type_uses_particular_template(generator_cls):
-    req = EstimateTotalRequest(**_payload_with("Particular"))
+def test_standard_proposal_type_uses_standard_template(generator_cls):
+    req = EstimateTotalRequest(**_payload_with("Standard"))
     text = _all_text(generator_cls().generate_docx(req))
 
-    for marker in PARTICULAR_MARKERS:
-        assert marker in text, f"Missing particular marker '{marker}'"
-    for marker in ANUAL_MARKERS:
-        assert marker not in text, f"Unexpected anual marker '{marker}'"
+    for marker in STANDARD_MARKERS:
+        assert marker in text, f"Missing standard marker '{marker}'"
+    for marker in ANNUAL_MARKERS:
+        assert marker not in text, f"Unexpected annual marker '{marker}'"
 
 
 @pytest.mark.parametrize("generator_cls", GENERATORS.values(), ids=GENERATORS.keys())
@@ -108,10 +108,10 @@ def test_missing_variant_template_falls_back_to_legacy(generator_cls, monkeypatc
 
     module = standard_module if generator_cls is EstimateDocxGenerator else perday_module
     monkeypatch.setitem(
-        module.TEMPLATE_BY_PROPOSAL_TYPE, "anual", "/tmp/does_not_exist_anual.docx"
+        module.TEMPLATE_BY_PROPOSAL_TYPE, "annual", "/tmp/does_not_exist_annual.docx"
     )
 
-    req = EstimateTotalRequest(**_payload_with("Anual"))
+    req = EstimateTotalRequest(**_payload_with("Annual"))
     generator = generator_cls()
     # Missing variant file must degrade to the legacy template, not crash.
     assert generator._resolve_template_path(req.event.proposal_type).endswith("_template.docx")
@@ -119,9 +119,11 @@ def test_missing_variant_template_falls_back_to_legacy(generator_cls, monkeypatc
 
 
 def test_proposal_type_normalization():
-    assert EstimateTotalRequest(**_payload_with("Anual")).event.proposal_type == "anual"
-    assert EstimateTotalRequest(**_payload_with("Annual")).event.proposal_type == "anual"
-    assert EstimateTotalRequest(**_payload_with("Particular")).event.proposal_type == "particular"
-    assert EstimateTotalRequest(**_payload_with("PARTICULAR")).event.proposal_type == "particular"
+    assert EstimateTotalRequest(**_payload_with("Annual")).event.proposal_type == "annual"
+    assert EstimateTotalRequest(**_payload_with("annual")).event.proposal_type == "annual"
+    assert EstimateTotalRequest(**_payload_with("Anual")).event.proposal_type == "annual"
+    assert EstimateTotalRequest(**_payload_with("Standard")).event.proposal_type == "standard"
+    assert EstimateTotalRequest(**_payload_with("STANDARD")).event.proposal_type == "standard"
+    assert EstimateTotalRequest(**_payload_with("Particular")).event.proposal_type == "standard"
     assert EstimateTotalRequest(**_payload_with("")).event.proposal_type == ""
     assert EstimateTotalRequest(**_payload_with("whatever")).event.proposal_type == ""

@@ -16,8 +16,8 @@ TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "..", "..")
 TEMPLATE_PATH = os.path.join(TEMPLATE_DIR, "estimate_perday_template.docx")
 
 TEMPLATE_BY_PROPOSAL_TYPE = {
-    "anual": os.path.join(TEMPLATE_DIR, "estimate_perday_template_anual.docx"),
-    "particular": os.path.join(TEMPLATE_DIR, "estimate_perday_template_particular.docx"),
+    "annual": os.path.join(TEMPLATE_DIR, "estimate_perday_template_anual.docx"),
+    "standard": os.path.join(TEMPLATE_DIR, "estimate_perday_template_particular.docx"),
 }
 
 class EstimatePerDayDocxGenerator:

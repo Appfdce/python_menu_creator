@@ -224,15 +224,16 @@ class EventInfo(BaseSchema):
     @classmethod
     def normalize_proposal_type(cls, v):
         """Canonicalizes the document type sent from AppSheet.
-        Accepts 'Anual'/'Annual' -> 'anual' and 'Particular' -> 'particular'.
-        Any other value (including empty) falls back to the legacy template."""
+        Accepts 'Annual' -> 'annual' and 'Standard' -> 'standard'. The previous
+        labels ('Anual'/'Particular') are still accepted as aliases. Any other
+        value (including empty) falls back to the legacy template."""
         if v is None:
             return ""
         s = str(v).strip().lower()
-        if s in ("anual", "annual"):
-            return "anual"
-        if s == "particular":
-            return "particular"
+        if s in ("annual", "anual"):
+            return "annual"
+        if s in ("standard", "particular"):
+            return "standard"
         return ""
 
 class MenuItem(BaseSchema):
