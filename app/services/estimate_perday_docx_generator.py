@@ -377,16 +377,15 @@ class EstimatePerDayDocxGenerator:
         # --- MENU SECTION ---
         add_p("MENUS", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
 
-        dietary_restrictions = (request.event.dietary_restrictions or "").strip()
+        if request.event.dietary_restrictions:
+            add_p("Dietary Restrictions", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
+            add_p(request.event.dietary_restrictions, space_after=Pt(0))
 
         printed_dates_menu = set()
         for meal in unique_meals:
             norm_date = (meal.date_header or "").strip()
             if norm_date not in printed_dates_menu:
                 printed_dates_menu.add(norm_date)
-                if dietary_restrictions:
-                    add_p("Dietary Restrictions", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
-                    add_p(dietary_restrictions, space_after=Pt(0))
                 add_p(meal.date_header, bold=True, space_before=Pt(6))
                 add_hr()
             
