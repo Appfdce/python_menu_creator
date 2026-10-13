@@ -332,7 +332,7 @@ class EstimatePerDayDocxGenerator:
         if not marker_para:
             logger.warning("Marker [DYNAMIC_CONTENT_START] not found. Appending to end.")
 
-        def add_p(text="", alignment=None, space_after=Pt(0), space_before=Pt(0), bold=False, italic=False, size=Pt(10), color=0x333333, underline=False):
+        def add_p(text="", alignment=None, space_after=Pt(0), space_before=Pt(0), bold=False, italic=False, size=Pt(10), color=0x333333, underline=False, page_break_before=False):
             if marker_para:
                 p = marker_para.insert_paragraph_before(text)
             else:
@@ -341,6 +341,7 @@ class EstimatePerDayDocxGenerator:
             if alignment: p.alignment = alignment
             p.paragraph_format.space_after = space_after
             p.paragraph_format.space_before = space_before
+            p.paragraph_format.page_break_before = page_break_before
             
             if p.runs:
                 run = p.runs[0]
@@ -468,8 +469,10 @@ class EstimatePerDayDocxGenerator:
                         desc_p.paragraph_format.left_indent = Cm(1.2)
 
         # --- FINANCIAL SECTION ---
-        add_p(space_before=Pt(10))
-        add_p("PROPOSAL OF SERVICES", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0), space_before=Pt(10))
+        # Start the financial section on a new page. Using page_break_before
+        # avoids an extra blank page when the menu content already ends at the
+        # top of a page.
+        add_p("PROPOSAL OF SERVICES", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0), space_before=Pt(10), page_break_before=True)
 
         # 1. Food Service
         add_p("Food Service", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0), space_before=Pt(10))
