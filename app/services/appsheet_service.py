@@ -54,7 +54,7 @@ class AppSheetService:
                 logger.error(f"Response content: {e.response.text}")
             return {"success": False, "error": str(e)}
 
-    def add_proposal_history_row(self, event_id: str, doc_url: str) -> dict:
+    def add_proposal_history_row(self, event_id: str, doc_url: str, file_name: str = "") -> dict:
         """Adds a new row to BDProposal History table."""
         import uuid
         if not (self.app_id and self.access_key):
@@ -78,7 +78,8 @@ class AppSheetService:
                 {
                     "ID": uuid.uuid4().hex[:8],
                     "Event ID": event_id,
-                    "Propuesta_PDF": doc_url
+                    "Propuesta_PDF": doc_url,
+                    "file_name": file_name
                 }
             ]
         }

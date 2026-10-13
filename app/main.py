@@ -19,6 +19,7 @@ from app.services.estimate_perday_docx_generator import EstimatePerDayDocxGenera
 from app.schemas.estimate_total import EstimateTotalRequest
 from app.schemas.excel_menu import ExcelMenuRequest
 from app.services.excel_generator import generate_individual_excel, generate_combined_excel
+from app.utils.naming import build_proposal_filename
 import io
 
 app = FastAPI(title="Menu Creator Service")
@@ -166,9 +167,7 @@ async def generate_estimate_total(
     generator = EstimateDocxGenerator()
     docx_stream = generator.generate_docx(validated_request)
     
-    clean_event_name = validated_request.event.name.split(".")[0] if validated_request.event.name else "Unnamed"
-    safe_event_name = clean_event_name.replace(" ", "_").replace("/", "-")
-    filename = f"Estimate_{safe_event_name}.docx"
+    filename = build_proposal_filename(validated_request, ".docx")
 
     if upload_to_drive:
         import json
@@ -177,7 +176,8 @@ async def generate_estimate_total(
             # Callback to AppSheet (Add new row to BDProposal History)
             appsheet_result = appsheet_service.add_proposal_history_row(
                 event_id=validated_request.event_id,
-                doc_url=result["download_link"]
+                doc_url=result["download_link"],
+                file_name=filename
             )
             result["appsheet_update"] = appsheet_result
             
@@ -234,9 +234,7 @@ async def generate_estimate_perday(
     generator = EstimatePerDayDocxGenerator()
     docx_stream = generator.generate_docx(validated_request)
     
-    clean_event_name = validated_request.event.name.split(".")[0] if validated_request.event.name else "Unnamed"
-    safe_event_name = clean_event_name.replace(" ", "_").replace("/", "-")
-    filename = f"Estimate_PerDay_{safe_event_name}.docx"
+    filename = build_proposal_filename(validated_request, ".docx")
 
     if upload_to_drive:
         import json
@@ -245,7 +243,8 @@ async def generate_estimate_perday(
             # Callback to AppSheet (Add new row to BDProposal History)
             appsheet_result = appsheet_service.add_proposal_history_row(
                 event_id=validated_request.event_id,
-                doc_url=result["download_link"]
+                doc_url=result["download_link"],
+                file_name=filename
             )
             result["appsheet_update"] = appsheet_result
             
