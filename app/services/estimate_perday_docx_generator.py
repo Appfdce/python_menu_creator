@@ -332,7 +332,7 @@ class EstimatePerDayDocxGenerator:
         if not marker_para:
             logger.warning("Marker [DYNAMIC_CONTENT_START] not found. Appending to end.")
 
-        def add_p(text="", alignment=None, space_after=Pt(0), space_before=Pt(0), bold=False, italic=False, size=Pt(10), color=0x333333, underline=False, page_break_before=False):
+        def add_p(text="", alignment=None, space_after=Pt(0), space_before=Pt(0), bold=False, italic=False, size=Pt(10), color=0x333333, underline=False, page_break_before=False, keep_with_next=False, keep_together=False):
             if marker_para:
                 p = marker_para.insert_paragraph_before(text)
             else:
@@ -342,6 +342,8 @@ class EstimatePerDayDocxGenerator:
             p.paragraph_format.space_after = space_after
             p.paragraph_format.space_before = space_before
             p.paragraph_format.page_break_before = page_break_before
+            p.paragraph_format.keep_with_next = keep_with_next
+            p.paragraph_format.keep_together = keep_together
             
             if p.runs:
                 run = p.runs[0]
@@ -355,7 +357,7 @@ class EstimatePerDayDocxGenerator:
             return p
 
         def add_hr():
-            p = add_p(space_after=Pt(3), space_before=Pt(0), size=Pt(1))
+            p = add_p(space_after=Pt(3), space_before=Pt(0), size=Pt(1), keep_with_next=True)
             p.paragraph_format.line_spacing = Pt(1)
             p_pr = p._element.get_or_add_pPr()
             p_bdr = p_pr.find(qn('w:pBdr'))
@@ -376,10 +378,10 @@ class EstimatePerDayDocxGenerator:
             add_p(request.event.address, alignment=WD_ALIGN_PARAGRAPH.CENTER, size=Pt(9), color=self.text_color, space_after=Pt(12))
 
         # --- MENU SECTION ---
-        add_p("MENUS", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
+        add_p("MENUS", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0), keep_with_next=True)
 
         if request.event.dietary_restrictions:
-            add_p("Dietary Restrictions", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0))
+            add_p("Dietary Restrictions", bold=True, size=Pt(10), color=self.primary_color, space_after=Pt(0), keep_with_next=True)
             add_p(request.event.dietary_restrictions, space_after=Pt(0))
 
         printed_dates_menu = set()
@@ -387,11 +389,11 @@ class EstimatePerDayDocxGenerator:
             norm_date = (meal.date_header or "").strip()
             if norm_date not in printed_dates_menu:
                 printed_dates_menu.add(norm_date)
-                add_p(meal.date_header, bold=True, space_before=Pt(6))
+                add_p(meal.date_header, bold=True, space_before=Pt(6), keep_with_next=True)
                 add_hr()
             
             if meal.category_name:
-                p = add_p("", space_before=Pt(8))
+                p = add_p("", space_before=Pt(8), keep_with_next=True)
                 if meal.time_range:
                     r_cat = p.add_run(meal.category_name.upper() + ": ")
                     self._set_run_font(r_cat, bold=True, size_pt=Pt(10), color_rgb=self.primary_color)
@@ -401,7 +403,7 @@ class EstimatePerDayDocxGenerator:
                     r_cat = p.add_run(meal.category_name.upper())
                     self._set_run_font(r_cat, bold=True, size_pt=Pt(10), color_rgb=self.primary_color)
             elif meal.time_range:
-                add_p(meal.time_range, space_before=Pt(8))
+                add_p(meal.time_range, space_before=Pt(8), keep_with_next=True)
             
             if meal.provide_by_client:
                 p = add_p("◽ Provided by client", space_before=Pt(4))
@@ -409,7 +411,7 @@ class EstimatePerDayDocxGenerator:
                 continue
 
             if meal.description:
-                add_p(meal.description, italic=True, space_before=Pt(0))
+                add_p(meal.description, italic=True, space_before=Pt(0), keep_together=True)
 
             grouped_subs = [] 
             for i in range(1, 13):
@@ -447,14 +449,14 @@ class EstimatePerDayDocxGenerator:
                 sub_items = gs['items']
 
                 if sub_name:
-                    sub_p = add_p(sub_name, bold=True, space_before=Pt(6))
+                    sub_p = add_p(sub_name, bold=True, space_before=Pt(6), keep_with_next=True)
                     sub_p.runs[0].underline = True
 
                 if sub_desc:
-                    add_p(sub_desc, size=Pt(10), italic=True)
+                    add_p(sub_desc, size=Pt(10), italic=True, keep_together=True)
 
                 for item in sub_items:
-                    item_p = add_p(space_after=Pt(2))
+                    item_p = add_p(space_after=Pt(2), keep_with_next=bool(item.description))
                     item_p.paragraph_format.left_indent = Cm(0.8)
                     item_p.paragraph_format.first_line_indent = Cm(-0.4)
                     
@@ -465,7 +467,7 @@ class EstimatePerDayDocxGenerator:
                     self._set_run_font(r_name, bold=False, underline=False)
 
                     if item.description:
-                        desc_p = add_p(item.description, size=Pt(10), italic=True, color=self.desc_color, space_after=Pt(4))
+                        desc_p = add_p(item.description, size=Pt(10), italic=True, color=self.desc_color, space_after=Pt(4), keep_together=True)
                         desc_p.paragraph_format.left_indent = Cm(1.2)
 
         # --- FINANCIAL SECTION ---
