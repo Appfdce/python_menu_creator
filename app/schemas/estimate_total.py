@@ -208,6 +208,7 @@ class EventInfo(BaseSchema):
     dietary_restrictions: str = ""
     proposal_type: str = ""
     status: str = ""
+    note: str = ""
 
     @field_validator('guests', mode='before')
     @classmethod

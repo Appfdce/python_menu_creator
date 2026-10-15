@@ -488,6 +488,19 @@ class EstimateDocxGenerator:
                         desc_p = add_p(item.description, size=Pt(10), italic=True, color=self.desc_color, space_after=Pt(4), keep_together=True)
                         desc_p.paragraph_format.left_indent = Cm(1.2)
 
+        # --- NOTE (end of menus, before the financial page break) ---
+        if request.event.note:
+            note_p = add_p(space_before=Pt(10), space_after=Pt(0), keep_together=True)
+            r_label = note_p.add_run("Note: ")
+            self._set_run_font(r_label, bold=True, color_rgb=self.primary_color)
+            for idx, line in enumerate(request.event.note.splitlines() or [request.event.note]):
+                if idx > 0:
+                    br_run = note_p.add_run()
+                    self._set_run_font(br_run, italic=True)
+                    br_run.add_break()
+                r_text = note_p.add_run(line)
+                self._set_run_font(r_text, italic=True)
+
         # --- FINANCIAL SECTION ---
         # Start the financial section on a new page. Using page_break_before
         # avoids an extra blank page when the menu content already ends at the
